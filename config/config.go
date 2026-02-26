@@ -9,14 +9,14 @@ import (
 type (
 	// Config -.
 	Config struct {
-		App     App
-		HTTP    HTTP
-		Log     Log
-		PG      PG
-		GRPC    GRPC
-		RMQ     RMQ
-		NATS    NATS
-		Metrics Metrics
+		App  App
+		HTTP HTTP
+		Log  Log
+		PG   PG
+		//GRPC    GRPC
+		//RMQ     RMQ
+		//NATS    NATS
+		//Metrics Metrics
 		Swagger Swagger
 	}
 
@@ -44,27 +44,27 @@ type (
 	}
 
 	// GRPC -.
-	GRPC struct {
-		Port string `env:"GRPC_PORT,required"`
-	}
+	// GRPC struct {
+	// 	Port string `env:"GRPC_PORT,required"`
+	// }
 
-	// RMQ -.
-	RMQ struct {
-		ServerExchange string `env:"RMQ_RPC_SERVER,required"`
-		ClientExchange string `env:"RMQ_RPC_CLIENT,required"`
-		URL            string `env:"RMQ_URL,required"`
-	}
+	// // RMQ -.
+	// RMQ struct {
+	// 	ServerExchange string `env:"RMQ_RPC_SERVER,required"`
+	// 	ClientExchange string `env:"RMQ_RPC_CLIENT,required"`
+	// 	URL            string `env:"RMQ_URL,required"`
+	// }
 
-	// NATS -.
-	NATS struct {
-		ServerExchange string `env:"NATS_RPC_SERVER,required"`
-		URL            string `env:"NATS_URL,required"`
-	}
+	// // NATS -.
+	// NATS struct {
+	// 	ServerExchange string `env:"NATS_RPC_SERVER,required"`
+	// 	URL            string `env:"NATS_URL,required"`
+	// }
 
-	// Metrics -.
-	Metrics struct {
-		Enabled bool `env:"METRICS_ENABLED" envDefault:"true"`
-	}
+	// // Metrics -.
+	// Metrics struct {
+	// 	Enabled bool `env:"METRICS_ENABLED" envDefault:"true"`
+	// }
 
 	// Swagger -.
 	Swagger struct {

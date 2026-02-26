@@ -15,4 +15,10 @@ type (
 		Translate(context.Context, entity.Translation) (entity.Translation, error)
 		History(context.Context) (entity.TranslationHistory, error)
 	}
+	Category interface {
+		GetAll(ctx context.Context) ([]entity.Category, error)
+	}
+	CategoryRepo interface {
+		GetAll(ctx context.Context) ([]entity.Category, error)
+	}
 )

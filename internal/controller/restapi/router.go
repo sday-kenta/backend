@@ -4,7 +4,6 @@ package restapi
 import (
 	"net/http"
 
-	"github.com/ansrivas/fiberprometheus/v2"
 	"github.com/evrone/go-clean-template/config"
 	_ "github.com/evrone/go-clean-template/docs" // Swagger docs.
 	"github.com/evrone/go-clean-template/internal/controller/restapi/middleware"
@@ -22,17 +21,17 @@ import (
 // @version     1.0
 // @host        localhost:8080
 // @BasePath    /v1
-func NewRouter(app *fiber.App, cfg *config.Config, t usecase.Translation, l logger.Interface) {
+func NewRouter(app *fiber.App, cfg *config.Config, t usecase.Translation, c usecase.Category, l logger.Interface) {
 	// Options
 	app.Use(middleware.Logger(l))
 	app.Use(middleware.Recovery(l))
 
 	// Prometheus metrics
-	if cfg.Metrics.Enabled {
-		prometheus := fiberprometheus.New("my-service-name")
-		prometheus.RegisterAt(app, "/metrics")
-		app.Use(prometheus.Middleware)
-	}
+	// if cfg.Metrics.Enabled {
+	// 	prometheus := fiberprometheus.New("my-service-name")
+	// 	prometheus.RegisterAt(app, "/metrics")
+	// 	app.Use(prometheus.Middleware)
+	// }
 
 	// Swagger
 	if cfg.Swagger.Enabled {
@@ -46,5 +45,6 @@ func NewRouter(app *fiber.App, cfg *config.Config, t usecase.Translation, l logg
 	apiV1Group := app.Group("/v1")
 	{
 		v1.NewTranslationRoutes(apiV1Group, t, l)
+		v1.NewCategoryRoutes(apiV1Group, c, l)
 	}
 }
