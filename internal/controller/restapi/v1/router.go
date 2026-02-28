@@ -1,3 +1,4 @@
+// backend/internal/controller/restapi/v1/router.go
 package v1
 
 import (
@@ -8,13 +9,29 @@ import (
 )
 
 // NewTranslationRoutes -.
-func NewTranslationRoutes(apiV1Group fiber.Router, t usecase.Translation, l logger.Interface) {
-	r := &V1{t: t, l: l, v: validator.New(validator.WithRequiredStructEnabled())}
+// func NewTranslationRoutes(apiV1Group fiber.Router, l logger.Interface) {
+// 	r := &V1{l: l, v: validator.New(validator.WithRequiredStructEnabled())}
 
-	translationGroup := apiV1Group.Group("/translation")
+// 	translationGroup := apiV1Group.Group("/translation")
 
+// 	{
+// 		translationGroup.Get("/history", r.history)
+// 		translationGroup.Post("/do-translate", r.doTranslate)
+// 	}
+// }
+
+func NewCategoryRoutes(apiV1Group fiber.Router, c usecase.Category, l logger.Interface) {
+	// Создаем экземпляр V1 с прокинутым юзкейсом категорий, логгером и валидатором
+	r := &V1{c: c, l: l, v: validator.New(validator.WithRequiredStructEnabled())}
+
+	categoryGroup := apiV1Group.Group("/categories")
 	{
-		translationGroup.Get("/history", r.history)
-		translationGroup.Post("/do-translate", r.doTranslate)
+		categoryGroup.Get("", r.getCategories)
+		categoryGroup.Get("/:id", r.getCategoryByID)
+
+		// Админские роуты защищены middleware requireAdmin
+		categoryGroup.Post("", r.requireAdmin, r.createCategory)
+		categoryGroup.Patch("/:id", r.requireAdmin, r.updateCategory)
+		categoryGroup.Delete("/:id", r.requireAdmin, r.deleteCategory)
 	}
 }

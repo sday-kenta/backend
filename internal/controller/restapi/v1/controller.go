@@ -1,3 +1,4 @@
+// backend/internal/controller/restapi/v1/controller.go
 package v1
 
 import (
@@ -8,7 +9,7 @@ import (
 
 // V1 -.
 type V1 struct {
-	t usecase.Translation
+	c usecase.Category // Добавили зависимость для Категорий
 	l logger.Interface
 	v *validator.Validate
 }

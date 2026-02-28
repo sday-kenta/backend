@@ -35,7 +35,7 @@ func Run(cfg *config.Config) { //nolint: gocyclo,cyclop,funlen,gocritic,nolintli
 
 	// HTTP Server
 	httpServer := httpserver.New(l, httpserver.Port(cfg.HTTP.Port), httpserver.Prefork(cfg.HTTP.UsePreforkMode))
-	restapi.NewRouter(httpServer.App, cfg, nil, categoryUseCase, l)
+	restapi.NewRouter(httpServer.App, cfg, categoryUseCase, l)
 
 	httpServer.Start()
 
