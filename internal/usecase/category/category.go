@@ -5,16 +5,16 @@ import (
 	"fmt"
 
 	"github.com/evrone/go-clean-template/internal/entity"
-	"github.com/evrone/go-clean-template/internal/usecase"
+	"github.com/evrone/go-clean-template/internal/repo"
 )
 
 // UseCase -.
 type UseCase struct {
-	repo usecase.CategoryRepo
+	repo repo.CategoryRepo
 }
 
 // New -.
-func New(r usecase.CategoryRepo) *UseCase {
+func New(r repo.CategoryRepo) *UseCase {
 	return &UseCase{
 		repo: r,
 	}

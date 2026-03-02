@@ -3,6 +3,7 @@ package v1
 import (
 	"net/http"
 
+	"github.com/evrone/go-clean-template/internal/controller/restapi/v1/request"
 	"github.com/evrone/go-clean-template/internal/entity"
 	"github.com/gofiber/fiber/v2"
 )
@@ -16,13 +17,13 @@ func (r *V1) requireAdmin(ctx *fiber.Ctx) error {
 	return ctx.Next()
 }
 
-// @Summary     Get categories
-// @Description Get all active categories (rubrics)
-// @ID          categories-get-all
+// @Summary     Get all categories
+// @Description Returns a list of all active categories (rubrics)
+// @ID          get-categories
 // @Tags  	    categories
 // @Accept      json
 // @Produce     json
-// @Success     200 {array} entity.Category
+// @Success     200 {array} entity.Category "List of categories"
 // @Failure     500 {object} response.Error
 // @Router      /categories [get]
 func (r *V1) getCategories(ctx *fiber.Ctx) error {
@@ -35,7 +36,18 @@ func (r *V1) getCategories(ctx *fiber.Ctx) error {
 	return ctx.Status(http.StatusOK).JSON(fiber.Map{"status": "success", "data": categories})
 }
 
-// getCategoryByID возвращает категорию по ID
+// @Summary     Get category by ID
+// @Description Returns a single active category by its ID
+// @ID          get-category-by-id
+// @Tags  	    categories
+// @Accept      json
+// @Produce     json
+// @Param       id path int true "Category ID"
+// @Success     200 {object} entity.Category "Single category"
+// @Failure     400 {object} response.Error "Invalid ID format"
+// @Failure     404 {object} response.Error "Category not found"
+// @Failure     500 {object} response.Error
+// @Router      /categories/{id} [get]
 func (r *V1) getCategoryByID(ctx *fiber.Ctx) error {
 	id, err := ctx.ParamsInt("id")
 	if err != nil {
@@ -50,15 +62,21 @@ func (r *V1) getCategoryByID(ctx *fiber.Ctx) error {
 	return ctx.Status(http.StatusOK).JSON(fiber.Map{"status": "success", "data": category})
 }
 
-// createCategoryReq структура запроса на создание
-type createCategoryReq struct {
-	Title   string `json:"title" validate:"required"` // Добавили тег валидации из шаблона
-	IconURL string `json:"icon_url"`
-}
-
-// createCategory создает новую рубрику (только админ)
+// @Summary     Create a new category
+// @Description Creates a new category (Admin only)
+// @ID          create-category
+// @Tags  	    categories
+// @Accept      json
+// @Produce     json
+// @Param       X-User-Role header string true "User role (must be 'admin')" default(admin)
+// @Param       request body request.CreateCategory true "Data for new category"
+// @Success     201 {object} entity.Category "Created category"
+// @Failure     400 {object} response.Error "Invalid request body"
+// @Failure     403 {object} response.Error "Access denied"
+// @Failure     500 {object} response.Error
+// @Router      /categories [post]
 func (r *V1) createCategory(ctx *fiber.Ctx) error {
-	var body createCategoryReq
+	var body request.CreateCategory
 
 	if err := ctx.BodyParser(&body); err != nil {
 		r.l.Error(err, "restapi - v1 - createCategory - BodyParser")
@@ -83,20 +101,27 @@ func (r *V1) createCategory(ctx *fiber.Ctx) error {
 	return ctx.Status(http.StatusCreated).JSON(fiber.Map{"status": "success", "data": category})
 }
 
-// updateCategoryReq структура запроса на обновление
-type updateCategoryReq struct {
-	Title   *string `json:"title"`
-	IconURL *string `json:"icon_url"`
-}
-
-// updateCategory обновляет поля рубрики (только админ)
+// @Summary     Update a category
+// @Description Partially updates a category by ID (Admin only)
+// @ID          update-category
+// @Tags  	    categories
+// @Accept      json
+// @Produce     json
+// @Param       id path int true "Category ID"
+// @Param       X-User-Role header string true "User role (must be 'admin')" default(admin)
+// @Param       request body request.UpdateCategory true "Data to update"
+// @Success     200 {object} entity.Category "Updated category"
+// @Failure     400 {object} response.Error "Invalid ID or request body"
+// @Failure     403 {object} response.Error "Access denied"
+// @Failure     500 {object} response.Error
+// @Router      /categories/{id} [patch]
 func (r *V1) updateCategory(ctx *fiber.Ctx) error {
 	id, err := ctx.ParamsInt("id")
 	if err != nil {
 		return errorResponse(ctx, http.StatusBadRequest, "invalid id format")
 	}
 
-	var body updateCategoryReq
+	var body request.UpdateCategory
 	if err := ctx.BodyParser(&body); err != nil {
 		r.l.Error(err, "restapi - v1 - updateCategory - BodyParser")
 		return errorResponse(ctx, http.StatusBadRequest, "invalid request body")
@@ -114,7 +139,19 @@ func (r *V1) updateCategory(ctx *fiber.Ctx) error {
 	return ctx.Status(http.StatusOK).JSON(fiber.Map{"status": "success", "data": category})
 }
 
-// deleteCategory выполняет soft-delete (только админ)
+// @Summary     Delete a category
+// @Description Soft-deletes a category by ID (Admin only)
+// @ID          delete-category
+// @Tags  	    categories
+// @Accept      json
+// @Produce     json
+// @Param       id path int true "Category ID"
+// @Param       X-User-Role header string true "User role (must be 'admin')" default(admin)
+// @Success     200 {object} map[string]interface{} "Success message"
+// @Failure     400 {object} response.Error "Invalid ID format"
+// @Failure     403 {object} response.Error "Access denied"
+// @Failure     500 {object} response.Error
+// @Router      /categories/{id} [delete]
 func (r *V1) deleteCategory(ctx *fiber.Ctx) error {
 	id, err := ctx.ParamsInt("id")
 	if err != nil {

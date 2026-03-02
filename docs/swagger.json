@@ -9,9 +9,9 @@
     "host": "localhost:8080",
     "basePath": "/v1",
     "paths": {
-        "/translation/do-translate": {
-            "post": {
-                "description": "Translate a text",
+        "/categories": {
+            "get": {
+                "description": "Returns a list of all active categories (rubrics)",
                 "consumes": [
                     "application/json"
                 ],
@@ -19,30 +19,75 @@
                     "application/json"
                 ],
                 "tags": [
-                    "translation"
+                    "categories"
                 ],
-                "summary": "Translate",
-                "operationId": "do-translate",
+                "summary": "Get all categories",
+                "operationId": "get-categories",
+                "responses": {
+                    "200": {
+                        "description": "List of categories",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/entity.Category"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Creates a new category (Admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "categories"
+                ],
+                "summary": "Create a new category",
+                "operationId": "create-category",
                 "parameters": [
                     {
-                        "description": "Set up translation",
+                        "type": "string",
+                        "default": "admin",
+                        "description": "User role (must be 'admin')",
+                        "name": "X-User-Role",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Data for new category",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/request.Translate"
+                            "$ref": "#/definitions/request.CreateCategory"
                         }
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Created category",
                         "schema": {
-                            "$ref": "#/definitions/entity.Translation"
+                            "$ref": "#/definitions/entity.Category"
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid request body",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Access denied",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }
@@ -56,9 +101,9 @@
                 }
             }
         },
-        "/translation/history": {
+        "/categories/{id}": {
             "get": {
-                "description": "Show all translation history",
+                "description": "Returns a single active category by its ID",
                 "consumes": [
                     "application/json"
                 ],
@@ -66,15 +111,160 @@
                     "application/json"
                 ],
                 "tags": [
-                    "translation"
+                    "categories"
                 ],
-                "summary": "Show history",
-                "operationId": "history",
+                "summary": "Get category by ID",
+                "operationId": "get-category-by-id",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Category ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Single category",
                         "schema": {
-                            "$ref": "#/definitions/entity.TranslationHistory"
+                            "$ref": "#/definitions/entity.Category"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid ID format",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Category not found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Soft-deletes a category by ID (Admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "categories"
+                ],
+                "summary": "Delete a category",
+                "operationId": "delete-category",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Category ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "admin",
+                        "description": "User role (must be 'admin')",
+                        "name": "X-User-Role",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid ID format",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Access denied",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Partially updates a category by ID (Admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "categories"
+                ],
+                "summary": "Update a category",
+                "operationId": "update-category",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Category ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "admin",
+                        "description": "User role (must be 'admin')",
+                        "name": "X-User-Role",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Data to update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.UpdateCategory"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated category",
+                        "schema": {
+                            "$ref": "#/definitions/entity.Category"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid ID or request body",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Access denied",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
                         }
                     },
                     "500": {
@@ -88,57 +278,42 @@
         }
     },
     "definitions": {
-        "entity.Translation": {
+        "entity.Category": {
             "type": "object",
             "properties": {
-                "destination": {
-                    "type": "string",
-                    "example": "en"
+                "icon_url": {
+                    "type": "string"
                 },
-                "original": {
-                    "type": "string",
-                    "example": "текст для перевода"
+                "id": {
+                    "type": "integer"
                 },
-                "source": {
-                    "type": "string",
-                    "example": "auto"
-                },
-                "translation": {
-                    "type": "string",
-                    "example": "text for translation"
+                "title": {
+                    "type": "string"
                 }
             }
         },
-        "entity.TranslationHistory": {
-            "type": "object",
-            "properties": {
-                "history": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/entity.Translation"
-                    }
-                }
-            }
-        },
-        "request.Translate": {
+        "request.CreateCategory": {
             "type": "object",
             "required": [
-                "destination",
-                "original",
-                "source"
+                "title"
             ],
             "properties": {
-                "destination": {
-                    "type": "string",
-                    "example": "en"
+                "icon_url": {
+                    "type": "string"
                 },
-                "original": {
-                    "type": "string",
-                    "example": "текст для перевода"
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "request.UpdateCategory": {
+            "type": "object",
+            "properties": {
+                "icon_url": {
+                    "type": "string"
                 },
-                "source": {
-                    "type": "string",
-                    "example": "auto"
+                "title": {
+                    "type": "string"
                 }
             }
         },
