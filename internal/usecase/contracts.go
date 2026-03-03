@@ -15,4 +15,13 @@ type (
 		Translate(context.Context, entity.Translation) (entity.Translation, error)
 		History(context.Context) (entity.TranslationHistory, error)
 	}
+
+	// User describes user-related business operations.
+	User interface {
+		Create(context.Context, entity.User, string) (entity.User, error)
+		Delete(context.Context, int64) error
+		GetByID(context.Context, int64) (entity.User, error)
+		List(context.Context) ([]entity.User, error)
+		Update(context.Context, entity.User) (entity.User, error)
+	}
 )

@@ -5,10 +5,10 @@ import "time"
 // User represents an application user.
 // It is used by business logic and maps to the "users" table.
 type User struct {
-	ID           int64     `json:"id"`
-	Login        string    `json:"login"`
-	Email        string    `json:"email"`
-	PasswordHash string    `json:"-"` // never expose password hash
+	ID           int64  `json:"id"`
+	Login        string `json:"login"`
+	Email        string `json:"email"`
+	PasswordHash string `json:"-"` // never expose password hash
 
 	LastName   string `json:"last_name"`
 	FirstName  string `json:"first_name"`
@@ -20,11 +20,9 @@ type User struct {
 	House     string `json:"house"`
 	Apartment string `json:"apartment,omitempty"`
 
-	IsBlocked  bool `json:"is_blocked"`
-	IsAdmin    bool `json:"is_admin"`
-	Newsletter bool `json:"newsletter"`
+	IsBlocked bool `json:"is_blocked"`
+	IsAdmin   bool `json:"is_admin"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
-

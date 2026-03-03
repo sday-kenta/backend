@@ -16,7 +16,6 @@ CREATE TABLE IF NOT EXISTS users (
 
     is_blocked     BOOLEAN      NOT NULL DEFAULT FALSE,
     is_admin       BOOLEAN      NOT NULL DEFAULT FALSE,
-    newsletter     BOOLEAN      NOT NULL DEFAULT TRUE,
 
     created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
