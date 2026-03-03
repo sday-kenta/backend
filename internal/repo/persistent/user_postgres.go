@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Masterminds/squirrel"
 	"github.com/evrone/go-clean-template/internal/entity"
 	"github.com/evrone/go-clean-template/pkg/postgres"
 )
@@ -71,7 +72,7 @@ func (r *UserRepo) Create(ctx context.Context, u *entity.User) error {
 func (r *UserRepo) Delete(ctx context.Context, id int64) error {
 	sql, args, err := r.Builder.
 		Delete("users").
-		Where(r.Builder.Equal("id", id)).
+		Where(squirrel.Eq{"id": id}).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf("UserRepo - Delete - r.Builder: %w", err)
@@ -107,7 +108,7 @@ func (r *UserRepo) GetByID(ctx context.Context, id int64) (entity.User, error) {
 			"updated_at",
 		).
 		From("users").
-		Where(r.Builder.Equal("id", id)).
+		Where(squirrel.Eq{"id": id}).
 		ToSql()
 	if err != nil {
 		return entity.User{}, fmt.Errorf("UserRepo - GetByID - r.Builder: %w", err)
@@ -228,7 +229,7 @@ func (r *UserRepo) Update(ctx context.Context, u *entity.User) error {
 			"is_blocked":  u.IsBlocked,
 			"is_admin":    u.IsAdmin,
 		}).
-		Where(r.Builder.Equal("id", u.ID)).
+		Where(squirrel.Eq{"id": u.ID}).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf("UserRepo - Update - r.Builder: %w", err)
