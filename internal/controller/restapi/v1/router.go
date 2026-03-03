@@ -31,5 +31,6 @@ func NewUserRoutes(apiV1Group fiber.Router, u usecase.User, l logger.Interface) 
 		usersGroup.Get("/:id", r.getUser)
 		usersGroup.Get("/", r.listUsers)
 		usersGroup.Put("/:id", r.updateUser)
+		usersGroup.Post("/:id/avatar", r.uploadAvatar)
 	}
 }

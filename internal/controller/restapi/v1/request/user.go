@@ -12,8 +12,8 @@ type CreateUser struct {
 	Street      string `json:"street"       validate:"required"  example:"Тверская"`
 	House       string `json:"house"        validate:"required"  example:"1"`
 	Apartment   string `json:"apartment"    example:"10"`
-	IsBlocked   bool   `json:"is_blocked"   example:"false"`
-	IsAdmin     bool   `json:"is_admin"     example:"false"`
+	IsBlocked   bool   `json:"is_blocked" example:"false"`
+	Role        string `json:"role" validate:"required,oneof=user admin premium" example:"user"`
 }
 
 type UpdateUser struct {
@@ -27,7 +27,7 @@ type UpdateUser struct {
 	Street     string `json:"street"       validate:"required"  example:"Тверская"`
 	House      string `json:"house"        validate:"required"  example:"1"`
 	Apartment  string `json:"apartment"    example:"10"`
-	IsBlocked  bool   `json:"is_blocked"   example:"false"`
-	IsAdmin    bool   `json:"is_admin"     example:"false"`
+	IsBlocked bool   `json:"is_blocked" example:"false"`
+	Role      string `json:"role" validate:"required,oneof=user admin premium" example:"user"`
 }
 

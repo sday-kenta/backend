@@ -306,6 +306,55 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/users/{id}/avatar": {
+            "post": {
+                "description": "Upload avatar image (JPEG/PNG) for a user",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Upload user avatar",
+                "operationId": "upload-avatar",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Avatar image (JPEG/PNG), max 2MB",
+                        "name": "avatar",
+                        "in": "formData",
+                        "required": true,
+                        "type": "file"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -347,6 +396,10 @@ const docTemplate = `{
                 "apartment": {
                     "type": "string"
                 },
+                "avatar": {
+                    "type": "string",
+                    "format": "byte"
+                },
                 "city": {
                     "type": "string"
                 },
@@ -365,9 +418,6 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
-                "is_admin": {
-                    "type": "boolean"
-                },
                 "is_blocked": {
                     "type": "boolean"
                 },
@@ -382,6 +432,10 @@ const docTemplate = `{
                 },
                 "phone": {
                     "type": "string"
+                },
+                "role": {
+                    "type": "string",
+                    "example": "user"
                 },
                 "street": {
                     "type": "string"
@@ -402,6 +456,7 @@ const docTemplate = `{
                 "login",
                 "password",
                 "phone",
+                "role",
                 "street"
             ],
             "properties": {
@@ -424,10 +479,6 @@ const docTemplate = `{
                 "house": {
                     "type": "string",
                     "example": "1"
-                },
-                "is_admin": {
-                    "type": "boolean",
-                    "example": false
                 },
                 "is_blocked": {
                     "type": "boolean",
@@ -452,6 +503,10 @@ const docTemplate = `{
                 "phone": {
                     "type": "string",
                     "example": "+79991234567"
+                },
+                "role": {
+                    "type": "string",
+                    "example": "user"
                 },
                 "street": {
                     "type": "string",
@@ -514,10 +569,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "1"
                 },
-                "is_admin": {
-                    "type": "boolean",
-                    "example": false
-                },
                 "is_blocked": {
                     "type": "boolean",
                     "example": false
@@ -537,6 +588,10 @@ const docTemplate = `{
                 "phone": {
                     "type": "string",
                     "example": "+79991234567"
+                },
+                "role": {
+                    "type": "string",
+                    "example": "user"
                 },
                 "street": {
                     "type": "string",

@@ -99,6 +99,7 @@ services:
     depends_on:
       - db
       - rabbitmq
+      - nats
     deploy:
       resources:
         limits:

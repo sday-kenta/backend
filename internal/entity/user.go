@@ -20,8 +20,11 @@ type User struct {
 	House     string `json:"house"`
 	Apartment string `json:"apartment,omitempty"`
 
-	IsBlocked bool `json:"is_blocked"`
-	IsAdmin   bool `json:"is_admin"`
+	// Avatar holds raw image bytes (e.g. JPEG/PNG). In JSON it will be base64-encoded.
+	Avatar []byte `json:"avatar,omitempty"`
+
+	IsBlocked bool   `json:"is_blocked"`
+	Role      string `json:"role"` // user, admin, premium
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

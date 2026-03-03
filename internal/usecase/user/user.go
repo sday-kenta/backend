@@ -29,9 +29,12 @@ func (uc *UseCase) Create(ctx context.Context, u entity.User, password string) (
 	}
 
 	u.PasswordHash = string(hashed)
+	if u.Role == "" {
+		u.Role = "user"
+	}
 
 	if err = uc.repo.Create(ctx, &u); err != nil {
-		return entity.User{}, fmt.Errorf("UserUseCase - Create - uc.repo.Create: %w", err)
+		return entity.User{}, err
 	}
 
 	return u, nil
@@ -40,7 +43,7 @@ func (uc *UseCase) Create(ctx context.Context, u entity.User, password string) (
 // Delete removes a user by ID.
 func (uc *UseCase) Delete(ctx context.Context, id int64) error {
 	if err := uc.repo.Delete(ctx, id); err != nil {
-		return fmt.Errorf("UserUseCase - Delete - uc.repo.Delete: %w", err)
+		return err
 	}
 
 	return nil
@@ -50,7 +53,7 @@ func (uc *UseCase) Delete(ctx context.Context, id int64) error {
 func (uc *UseCase) GetByID(ctx context.Context, id int64) (entity.User, error) {
 	u, err := uc.repo.GetByID(ctx, id)
 	if err != nil {
-		return entity.User{}, fmt.Errorf("UserUseCase - GetByID - uc.repo.GetByID: %w", err)
+		return entity.User{}, err
 	}
 
 	return u, nil
@@ -69,9 +72,19 @@ func (uc *UseCase) List(ctx context.Context) ([]entity.User, error) {
 // Update updates user fields (without changing password).
 func (uc *UseCase) Update(ctx context.Context, u entity.User) (entity.User, error) {
 	if err := uc.repo.Update(ctx, &u); err != nil {
-		return entity.User{}, fmt.Errorf("UserUseCase - Update - uc.repo.Update: %w", err)
+		return entity.User{}, err
 	}
 
 	return u, nil
 }
+
+// UpdateAvatar updates the avatar image for a user.
+func (uc *UseCase) UpdateAvatar(ctx context.Context, id int64, avatar []byte) error {
+	if err := uc.repo.UpdateAvatar(ctx, id, avatar); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 

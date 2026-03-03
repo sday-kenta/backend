@@ -26,6 +26,9 @@ definitions:
     properties:
       apartment:
         type: string
+      avatar:
+        type: string
+        format: byte
       city:
         type: string
       created_at:
@@ -38,10 +41,11 @@ definitions:
         type: string
       id:
         type: integer
-      is_admin:
-        type: boolean
       is_blocked:
         type: boolean
+      role:
+        type: string
+        example: user
       last_name:
         type: string
       login:
@@ -72,9 +76,6 @@ definitions:
       house:
         example: "1"
         type: string
-      is_admin:
-        example: false
-        type: boolean
       is_blocked:
         example: false
         type: boolean
@@ -93,6 +94,9 @@ definitions:
       phone:
         example: "+79991234567"
         type: string
+      role:
+        example: user
+        type: string
       street:
         example: Тверская
         type: string
@@ -105,6 +109,7 @@ definitions:
     - login
     - password
     - phone
+    - role
     - street
     type: object
   request.Translate:
@@ -140,12 +145,12 @@ definitions:
       house:
         example: "1"
         type: string
-      is_admin:
-        example: false
-        type: boolean
       is_blocked:
         example: false
         type: boolean
+      role:
+        example: user
+        type: string
       last_name:
         example: Иванов
         type: string
@@ -377,6 +382,39 @@ paths:
           schema:
             $ref: '#/definitions/response.Error'
       summary: Update user
+      tags:
+      - users
+  /users/{id}/avatar:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload avatar image (JPEG/PNG) for a user
+      operationId: upload-avatar
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Avatar image (JPEG/PNG), max 2MB
+        in: formData
+        name: avatar
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Upload user avatar
       tags:
       - users
 swagger: "2.0"

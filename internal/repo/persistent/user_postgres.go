@@ -2,11 +2,15 @@ package persistent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/evrone/go-clean-template/internal/entity"
+	"github.com/evrone/go-clean-template/internal/usererr"
 	"github.com/evrone/go-clean-template/pkg/postgres"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // UserRepo implements repo.UserRepo using Postgres.
@@ -19,8 +23,34 @@ func NewUserRepo(pg *postgres.Postgres) *UserRepo {
 	return &UserRepo{pg}
 }
 
+func mapPgError(err error) error {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return usererr.ErrNotFound
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		switch pgErr.ConstraintName {
+		case "users_login_key", "users_login_unique":
+			return usererr.ErrDuplicateLogin
+		case "users_email_key", "users_email_unique":
+			return usererr.ErrDuplicateEmail
+		}
+	}
+	return err
+}
+
 // Create inserts a new user and sets its ID.
 func (r *UserRepo) Create(ctx context.Context, u *entity.User) error {
+	// Resolve role name to ID from roles table
+	var roleID int64
+	err := r.Pool.QueryRow(ctx, "SELECT id FROM roles WHERE name = $1 LIMIT 1", u.Role).Scan(&roleID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return usererr.ErrInvalidRole
+		}
+		return fmt.Errorf("UserRepo - Create - roles lookup: %w", err)
+	}
+
 	sql, args, err := r.Builder.
 		Insert("users").
 		Columns(
@@ -36,7 +66,7 @@ func (r *UserRepo) Create(ctx context.Context, u *entity.User) error {
 			"house",
 			"apartment",
 			"is_blocked",
-			"is_admin",
+			"role_id",
 		).
 		Values(
 			u.Login,
@@ -51,7 +81,7 @@ func (r *UserRepo) Create(ctx context.Context, u *entity.User) error {
 			u.House,
 			u.Apartment,
 			u.IsBlocked,
-			u.IsAdmin,
+			roleID,
 		).
 		Suffix("RETURNING id").
 		ToSql()
@@ -62,7 +92,7 @@ func (r *UserRepo) Create(ctx context.Context, u *entity.User) error {
 	row := r.Pool.QueryRow(ctx, sql, args...)
 
 	if err = row.Scan(&u.ID); err != nil {
-		return fmt.Errorf("UserRepo - Create - row.Scan: %w", err)
+		return mapPgError(err)
 	}
 
 	return nil
@@ -73,14 +103,16 @@ func (r *UserRepo) Delete(ctx context.Context, id int64) error {
 	sql, args, err := r.Builder.
 		Delete("users").
 		Where(squirrel.Eq{"id": id}).
+		Suffix("RETURNING id").
 		ToSql()
 	if err != nil {
 		return fmt.Errorf("UserRepo - Delete - r.Builder: %w", err)
 	}
 
-	_, err = r.Pool.Exec(ctx, sql, args...)
-	if err != nil {
-		return fmt.Errorf("UserRepo - Delete - r.Pool.Exec: %w", err)
+	row := r.Pool.QueryRow(ctx, sql, args...)
+	var deletedID int64
+	if err = row.Scan(&deletedID); err != nil {
+		return mapPgError(err)
 	}
 
 	return nil
@@ -90,25 +122,27 @@ func (r *UserRepo) Delete(ctx context.Context, id int64) error {
 func (r *UserRepo) GetByID(ctx context.Context, id int64) (entity.User, error) {
 	sql, args, err := r.Builder.
 		Select(
-			"id",
-			"login",
-			"email",
-			"password_hash",
-			"last_name",
-			"first_name",
-			"middle_name",
-			"phone",
-			"city",
-			"street",
-			"house",
-			"apartment",
-			"is_blocked",
-			"is_admin",
-			"created_at",
-			"updated_at",
+			"u.id",
+			"u.login",
+			"u.email",
+			"u.password_hash",
+			"u.last_name",
+			"u.first_name",
+			"u.middle_name",
+			"u.phone",
+			"u.city",
+			"u.street",
+			"u.house",
+			"u.apartment",
+			"u.avatar",
+			"u.is_blocked",
+			"r.name as role",
+			"u.created_at",
+			"u.updated_at",
 		).
-		From("users").
-		Where(squirrel.Eq{"id": id}).
+		From("users u").
+		Join("roles r ON u.role_id = r.id").
+		Where(squirrel.Eq{"u.id": id}).
 		ToSql()
 	if err != nil {
 		return entity.User{}, fmt.Errorf("UserRepo - GetByID - r.Builder: %w", err)
@@ -131,13 +165,14 @@ func (r *UserRepo) GetByID(ctx context.Context, id int64) (entity.User, error) {
 		&u.Street,
 		&u.House,
 		&u.Apartment,
+		&u.Avatar,
 		&u.IsBlocked,
-		&u.IsAdmin,
+		&u.Role,
 		&u.CreatedAt,
 		&u.UpdatedAt,
 	)
 	if err != nil {
-		return entity.User{}, fmt.Errorf("UserRepo - GetByID - row.Scan: %w", err)
+		return entity.User{}, mapPgError(err)
 	}
 
 	return u, nil
@@ -147,24 +182,26 @@ func (r *UserRepo) GetByID(ctx context.Context, id int64) (entity.User, error) {
 func (r *UserRepo) List(ctx context.Context) ([]entity.User, error) {
 	sql, _, err := r.Builder.
 		Select(
-			"id",
-			"login",
-			"email",
-			"password_hash",
-			"last_name",
-			"first_name",
-			"middle_name",
-			"phone",
-			"city",
-			"street",
-			"house",
-			"apartment",
-			"is_blocked",
-			"is_admin",
-			"created_at",
-			"updated_at",
+			"u.id",
+			"u.login",
+			"u.email",
+			"u.password_hash",
+			"u.last_name",
+			"u.first_name",
+			"u.middle_name",
+			"u.phone",
+			"u.city",
+			"u.street",
+			"u.house",
+			"u.apartment",
+			"u.avatar",
+			"u.is_blocked",
+			"r.name as role",
+			"u.created_at",
+			"u.updated_at",
 		).
-		From("users").
+		From("users u").
+		Join("roles r ON u.role_id = r.id").
 		ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("UserRepo - List - r.Builder: %w", err)
@@ -196,8 +233,9 @@ func (r *UserRepo) List(ctx context.Context) ([]entity.User, error) {
 			&u.Street,
 			&u.House,
 			&u.Apartment,
+			&u.Avatar,
 			&u.IsBlocked,
-			&u.IsAdmin,
+			&u.Role,
 			&u.CreatedAt,
 			&u.UpdatedAt,
 		)
@@ -215,20 +253,18 @@ func (r *UserRepo) List(ctx context.Context) ([]entity.User, error) {
 func (r *UserRepo) Update(ctx context.Context, u *entity.User) error {
 	sql, args, err := r.Builder.
 		Update("users").
-		SetMap(map[string]any{
-			"login":       u.Login,
-			"email":       u.Email,
-			"last_name":   u.LastName,
-			"first_name":  u.FirstName,
-			"middle_name": u.MiddleName,
-			"phone":       u.Phone,
-			"city":        u.City,
-			"street":      u.Street,
-			"house":       u.House,
-			"apartment":   u.Apartment,
-			"is_blocked":  u.IsBlocked,
-			"is_admin":    u.IsAdmin,
-		}).
+		Set("login", u.Login).
+		Set("email", u.Email).
+		Set("last_name", u.LastName).
+		Set("first_name", u.FirstName).
+		Set("middle_name", u.MiddleName).
+		Set("phone", u.Phone).
+		Set("city", u.City).
+		Set("street", u.Street).
+		Set("house", u.House).
+		Set("apartment", u.Apartment).
+		Set("is_blocked", u.IsBlocked).
+		Set("role_id", squirrel.Expr("(SELECT id FROM roles WHERE name = ? LIMIT 1)", u.Role)).
 		Where(squirrel.Eq{"id": u.ID}).
 		ToSql()
 	if err != nil {
@@ -237,9 +273,28 @@ func (r *UserRepo) Update(ctx context.Context, u *entity.User) error {
 
 	_, err = r.Pool.Exec(ctx, sql, args...)
 	if err != nil {
-		return fmt.Errorf("UserRepo - Update - r.Pool.Exec: %w", err)
+		return mapPgError(err)
 	}
 
 	return nil
 }
 
+// UpdateAvatar updates the avatar image for a user by ID.
+func (r *UserRepo) UpdateAvatar(ctx context.Context, id int64, avatar []byte) error {
+	sql, args, err := r.Builder.
+		Update("users").
+		Set("avatar", avatar).
+		Where(squirrel.Eq{"id": id}).
+		Suffix("RETURNING id").
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("UserRepo - UpdateAvatar - r.Builder: %w", err)
+	}
+
+	var updatedID int64
+	if err = r.Pool.QueryRow(ctx, sql, args...).Scan(&updatedID); err != nil {
+		return mapPgError(err)
+	}
+
+	return nil
+}

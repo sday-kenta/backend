@@ -28,9 +28,10 @@ func NewRouter(app *fiber.App, cfg *config.Config, t usecase.Translation, u usec
 	app.Use(middleware.Logger(l))
 	app.Use(middleware.Recovery(l))
 
-	// CORS for frontend on http://localhost:5173
+	// CORS (frontend + swagger UI). Swagger can be opened via nginx (http://localhost),
+	// while API runs on http://localhost:8080, so we must allow cross-origin requests in dev.
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: "http://localhost:5173",
+		AllowOrigins: "*",
 		AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
 	}))
