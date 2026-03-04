@@ -20,8 +20,8 @@ type User struct {
 	House     string `json:"house"`
 	Apartment string `json:"apartment,omitempty"`
 
-	// Avatar holds raw image bytes (e.g. JPEG/PNG). In JSON it will be base64-encoded.
-	Avatar []byte `json:"avatar,omitempty"`
+	// AvatarURL stores identifier or URL of avatar image (e.g. S3 key).
+	AvatarURL string `json:"avatar_url,omitempty"`
 
 	IsBlocked bool   `json:"is_blocked"`
 	Role      string `json:"role"` // user, admin, premium

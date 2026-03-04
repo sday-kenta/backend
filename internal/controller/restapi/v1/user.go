@@ -3,10 +3,11 @@ package v1
 import (
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/evrone/go-clean-template/internal/controller/restapi/v1/request"
 	"github.com/evrone/go-clean-template/internal/entity"
@@ -25,6 +26,8 @@ func userErrorResponse(ctx *fiber.Ctx, err error) error {
 		return errorResponse(ctx, http.StatusConflict, "login already exists")
 	case errors.Is(err, usererr.ErrDuplicateEmail):
 		return errorResponse(ctx, http.StatusConflict, "email already exists")
+	case errors.Is(err, usererr.ErrDuplicatePhone):
+		return errorResponse(ctx, http.StatusConflict, "phone already exists")
 	case errors.Is(err, usererr.ErrInvalidRole):
 		return errorResponse(ctx, http.StatusBadRequest, "invalid role")
 	default:
@@ -274,20 +277,13 @@ func (r *UsersV1) uploadAvatar(ctx *fiber.Ctx) error {
 		return errorResponse(ctx, http.StatusBadRequest, "avatar file too large (max 2MB)")
 	}
 
-	file, err := fileHeader.Open()
-	if err != nil {
-		r.l.Error(err, "restapi - v1 - uploadAvatar - Open")
-		return errorResponse(ctx, http.StatusInternalServerError, "cannot read avatar file")
+	ext := filepath.Ext(fileHeader.Filename)
+	if ext == "" {
+		ext = ".img"
 	}
-	defer file.Close()
+	avatarKey := fmt.Sprintf("user-%d-%d%s", id, time.Now().UnixNano(), ext)
 
-	data, err := io.ReadAll(file)
-	if err != nil {
-		r.l.Error(err, "restapi - v1 - uploadAvatar - ReadAll")
-		return errorResponse(ctx, http.StatusInternalServerError, "cannot read avatar file")
-	}
-
-	if err = r.u.UpdateAvatar(ctx.UserContext(), id, data); err != nil {
+	if err = r.u.UpdateAvatar(ctx.UserContext(), id, avatarKey); err != nil {
 		r.l.Error(err, "restapi - v1 - uploadAvatar")
 		return userErrorResponse(ctx, err)
 	}

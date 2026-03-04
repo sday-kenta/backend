@@ -78,9 +78,9 @@ func (uc *UseCase) Update(ctx context.Context, u entity.User) (entity.User, erro
 	return u, nil
 }
 
-// UpdateAvatar updates the avatar image for a user.
-func (uc *UseCase) UpdateAvatar(ctx context.Context, id int64, avatar []byte) error {
-	if err := uc.repo.UpdateAvatar(ctx, id, avatar); err != nil {
+// UpdateAvatar updates the avatar identifier/URL for a user.
+func (uc *UseCase) UpdateAvatar(ctx context.Context, id int64, avatarURL string) error {
+	if err := uc.repo.UpdateAvatar(ctx, id, avatarURL); err != nil {
 		return err
 	}
 

@@ -23,6 +23,6 @@ type (
 		GetByID(context.Context, int64) (entity.User, error)
 		List(context.Context) ([]entity.User, error)
 		Update(context.Context, entity.User) (entity.User, error)
-		UpdateAvatar(context.Context, int64, []byte) error
+		UpdateAvatar(context.Context, int64, string) error
 	}
 )

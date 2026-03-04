@@ -34,6 +34,8 @@ func mapPgError(err error) error {
 			return usererr.ErrDuplicateLogin
 		case "users_email_key", "users_email_unique":
 			return usererr.ErrDuplicateEmail
+		case "users_phone_key", "users_phone_unique":
+			return usererr.ErrDuplicatePhone
 		}
 	}
 	return err
@@ -134,7 +136,7 @@ func (r *UserRepo) GetByID(ctx context.Context, id int64) (entity.User, error) {
 			"u.street",
 			"u.house",
 			"u.apartment",
-			"u.avatar",
+			"u.avatar_url",
 			"u.is_blocked",
 			"r.name as role",
 			"u.created_at",
@@ -165,7 +167,7 @@ func (r *UserRepo) GetByID(ctx context.Context, id int64) (entity.User, error) {
 		&u.Street,
 		&u.House,
 		&u.Apartment,
-		&u.Avatar,
+		&u.AvatarURL,
 		&u.IsBlocked,
 		&u.Role,
 		&u.CreatedAt,
@@ -194,7 +196,7 @@ func (r *UserRepo) List(ctx context.Context) ([]entity.User, error) {
 			"u.street",
 			"u.house",
 			"u.apartment",
-			"u.avatar",
+			"u.avatar_url",
 			"u.is_blocked",
 			"r.name as role",
 			"u.created_at",
@@ -233,7 +235,7 @@ func (r *UserRepo) List(ctx context.Context) ([]entity.User, error) {
 			&u.Street,
 			&u.House,
 			&u.Apartment,
-			&u.Avatar,
+			&u.AvatarURL,
 			&u.IsBlocked,
 			&u.Role,
 			&u.CreatedAt,
@@ -266,24 +268,25 @@ func (r *UserRepo) Update(ctx context.Context, u *entity.User) error {
 		Set("is_blocked", u.IsBlocked).
 		Set("role_id", squirrel.Expr("(SELECT id FROM roles WHERE name = ? LIMIT 1)", u.Role)).
 		Where(squirrel.Eq{"id": u.ID}).
+		Suffix("RETURNING id").
 		ToSql()
 	if err != nil {
 		return fmt.Errorf("UserRepo - Update - r.Builder: %w", err)
 	}
 
-	_, err = r.Pool.Exec(ctx, sql, args...)
-	if err != nil {
+	var updatedID int64
+	if err = r.Pool.QueryRow(ctx, sql, args...).Scan(&updatedID); err != nil {
 		return mapPgError(err)
 	}
 
 	return nil
 }
 
-// UpdateAvatar updates the avatar image for a user by ID.
-func (r *UserRepo) UpdateAvatar(ctx context.Context, id int64, avatar []byte) error {
+// UpdateAvatar updates the avatar identifier/URL for a user by ID.
+func (r *UserRepo) UpdateAvatar(ctx context.Context, id int64, avatarURL string) error {
 	sql, args, err := r.Builder.
 		Update("users").
-		Set("avatar", avatar).
+		Set("avatar_url", avatarURL).
 		Where(squirrel.Eq{"id": id}).
 		Suffix("RETURNING id").
 		ToSql()
