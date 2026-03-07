@@ -1,50 +1,70 @@
-version: "3.9"
-
-x-db-environment: &x-db-environment
-  POSTGRES_USER: "postgres"
-  POSTGRES_PASSWORD: "123"
-  POSTGRES_DB: "sday_kenta"
-  POSTGRES_SSL_MODE: "disable"
-
-x-backend-app-environment: &x-backend-app-environment
-  GOMAXPROCS: "1"
-  # App
-  APP_NAME: "sday_kenta"
-  APP_VERSION: "1.0.0"
-  # HTTP settings
-  HTTP_PORT: "8080"
-  HTTP_USE_PREFORK_MODE: "false"
-  # Logger
-  LOG_LEVEL: "debug"
-  # PG (Внимание: хост заменен с localhost на db)
-  PG_POOL_MAX: "2"
-  PG_URL: "postgres://postgres:123@db:5432/sday_kenta"
-  
-  # --- ЗАКОММЕНТИРОВАННЫЙ ЛИШНИЙ ФУНКЦИОНАЛ ---
-  # GRPC_PORT: "8081"
-  # RMQ_RPC_SERVER: "rpc_server"
-  # RMQ_RPC_CLIENT: "rpc_client"
-  # RMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
-  # NATS_RPC_SERVER: "rpc_server"
-  # NATS_URL: "nats://guest:guest@nats:4222/"
-  # Metrics & Swagger
-  METRICS_ENABLED: "false"
-  SWAGGER_ENABLED: "true"
-
 services:
   db:
     container_name: db
-    image: postgres:18.2-alpine # Установлена требуемая версия
+    image: postgis/postgis:18-3.6-alpine
     environment:
-      <<: *x-db-environment
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - db_data:/var/lib/postgresql/data
+      - ./deploy/data:/seed-data:ro
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
     networks:
       app_network:
         aliases:
           - db.lvh.me
+
+  migrator:
+    container_name: migrator
+    image: migrate/migrate:v4.18.3
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./migrations:/migrations:ro
+    command:
+      [
+        "-path", "/migrations",
+        "-database", "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable",
+        "up"
+      ]
+    restart: "no"
+    networks:
+      app_network:
+        aliases:
+          - migrator.lvh.me
+
+  db-seed:
+    container_name: db-seed
+    image: postgis/postgis:18-3.6-alpine
+    depends_on:
+      db:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+    volumes:
+      - ./deploy/data:/seed-data:ro
+      - ./deploy/db-init:/db-init:ro
+    entrypoint: ["psql"]
+    command: ["-v", "ON_ERROR_STOP=1", "-f", "/db-init/10-seed-samara.sql"]
+    restart: "no"
+    networks:
+      app_network:
+        aliases:
+          - db-seed.lvh.me
 
   app:
     container_name: app
@@ -52,72 +72,29 @@ services:
     pid: "host"
     build:
       context: .
-    environment:
-      <<: *x-backend-app-environment
+    env_file:
+      - .env
     ports:
       - "8080:8080"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+      db-seed:
+        condition: service_completed_successfully
     deploy:
       resources:
         limits:
-          cpus: '1.00'
-          memory: '2Gb'
+          cpus: "1.00"
+          memory: "2Gb"
         reservations:
-          cpus: '0.60'
-          memory: '1Gb'
+          cpus: "0.60"
+          memory: "1Gb"
     networks:
       app_network:
         aliases:
           - app.lvh.me
-
-  # ==========================================
-  # ЗАКОММЕНТИРОВАННЫЕ НЕНУЖНЫЕ СЕРВИСЫ
-  # ==========================================
-
-  # rabbitmq:
-  #   container_name: rabbitmq
-  #   image: rabbitmq:4.2.4-management
-  #   environment:
-  #     RABBITMQ_DEFAULT_USER: "guest"
-  #     RABBITMQ_DEFAULT_PASS: "guest"
-  #   ports:
-  #     - "15672:15672"
-  #     - "5672:5672"
-  #   volumes:
-  #     - rabbitmq_data:/var/lib/rabbitmq
-  #   networks:
-  #     app_network:
-  #       aliases:
-  #         - rabbitmq.lvh.me
-
-  # nats:
-  #   container_name: nats
-  #   image: nats:2.12-alpine
-  #   command:[ "-m", "8222", "-sd", "/nats-data", "-user", "guest", "-pass", "guest" ]
-  #   ports:
-  #     - "4222:4222"
-  #     - "8222:8222"
-  #   volumes:
-  #     - nats_data:/nats-data
-  #   networks:
-  #     app_network:
-  #       aliases:
-  #         - nats.lvh.me
-
-  # nginx:
-  #   container_name: nginx
-  #   image: nginx:1.29.5-alpine
-  #   volumes:
-  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-  #   ports:
-  #     - "80:80"
-  #   depends_on:
-  #     - app
-  #   networks:
-  #     app_network:
-  #       aliases:
-  #         - nginx.lvh.me
 
 networks:
   app_network:
@@ -125,5 +102,3 @@ networks:
 
 volumes:
   db_data:
-  # rabbitmq_data:
-  # nats_data:
