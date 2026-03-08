@@ -1,4 +1,3 @@
-basePath: /v1
 definitions:
   entity.Category:
     properties:
@@ -28,15 +27,51 @@ definitions:
   response.Error:
     properties:
       error:
-        example: message
+        example: project does not work in this area yet
         type: string
     type: object
-host: localhost:8080
+  response.GeoAddress:
+    properties:
+      city:
+        example: Самара
+        type: string
+      full_address:
+        example: 1, проспект Ленина, Октябрьский район, Самара, городской округ Самара,
+          Самарская область, Приволжский федеральный округ, 443110, Россия
+        type: string
+      house_number:
+        example: "1"
+        type: string
+      lat:
+        example: 53.2051714
+        type: number
+      lon:
+        example: 50.1334676
+        type: number
+      road:
+        example: проспект Ленина
+        type: string
+    type: object
+  response.ReverseGeocodeResponse:
+    properties:
+      data:
+        $ref: '#/definitions/response.GeoAddress'
+      status:
+        example: success
+        type: string
+    type: object
+  response.SearchAddressResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/response.GeoAddress'
+        type: array
+      status:
+        example: success
+        type: string
+    type: object
 info:
   contact: {}
-  description: Using a translation service as an example
-  title: Go Clean Template API
-  version: "1.0"
 paths:
   /categories:
     get:
@@ -219,4 +254,92 @@ paths:
       summary: Update a category
       tags:
       - categories
+  /v1/maps/reverse:
+    get:
+      consumes:
+      - application/json
+      description: |-
+        Выполняет reverse geocoding: по координатам точки на карте возвращает человекочитаемый адрес.
+        Используется, когда пользователь выбирает место на карте, а frontend должен показать адрес выбранной точки.
+
+        Если точка находится вне разрешённой области работы проекта, возвращается ошибка.
+        Если точка находится внутри разрешённой области, backend пытается определить адрес через локальный кеш и/или Nominatim/OpenStreetMap.
+      parameters:
+      - description: Широта точки
+        example: 53.2051714
+        in: query
+        name: lat
+        required: true
+        type: number
+      - description: Долгота точки
+        example: 50.1334676
+        in: query
+        name: lon
+        required: true
+        type: number
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Найденный адрес по координатам
+          schema:
+            $ref: '#/definitions/response.ReverseGeocodeResponse'
+        "400":
+          description: Некорректные координаты или отсутствующие query-параметры
+          schema:
+            $ref: '#/definitions/response.Error'
+        "422":
+          description: Точка находится вне зоны работы проекта
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Внутренняя ошибка сервиса карт
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Получение адреса по координатам
+      tags:
+      - maps
+  /v1/maps/search:
+    get:
+      consumes:
+      - application/json
+      description: |-
+        Выполняет поиск адреса по текстовому запросу пользователя через Nominatim/OpenStreetMap. Используется, когда пользователь вводит адрес вручную в строке поиска на карте.
+
+        Поиск ограничивается адресами, релевантными для зоны работы проекта. Если найдены только адреса вне разрешённой области, возвращается ошибка.
+        Если по запросу не найдено ни одного подходящего адреса, возвращается успешный ответ с пустым списком.
+
+        Примеры запросов:
+        - "Самара проспект Ленина 1"
+        - "Самара Ленина 1"
+        - "Ленина 1"
+      parameters:
+      - description: Строка поиска адреса
+        example: '"Самара проспект Ленина 1"'
+        in: query
+        name: q
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Список найденных адресов или пустой список
+          schema:
+            $ref: '#/definitions/response.SearchAddressResponse'
+        "400":
+          description: Некорректный запрос, например пустой или слишком короткий q
+          schema:
+            $ref: '#/definitions/response.Error'
+        "422":
+          description: Найдены только адреса вне зоны работы проекта
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Внутренняя ошибка сервиса карт
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Поиск адреса по строке
+      tags:
+      - maps
 swagger: "2.0"

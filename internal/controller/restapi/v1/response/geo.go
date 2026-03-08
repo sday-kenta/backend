@@ -18,7 +18,3 @@ type ReverseGeocodeResponse struct {
 	Status string     `json:"status" example:"success"`
 	Data   GeoAddress `json:"data"`
 }
-
-type ErrorResponse struct {
-	Error string `json:"error" example:"project does not work in this area yet"`
-}

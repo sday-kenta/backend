@@ -146,7 +146,7 @@ func (r *NominatimRepo) Reverse(ctx context.Context, lat, lon float64) (entity.A
 		values.Set("email", r.email)
 	}
 
-	var place entity.NominatimPlace
+	var place NominatimPlace
 	if err := r.doJSON(ctx, http.MethodGet, r.baseURL+"/reverse", values, &place); err != nil {
 		return entity.Address{}, err
 	}
@@ -197,7 +197,7 @@ func (r *NominatimRepo) Search(ctx context.Context, query string) ([]entity.Addr
 }
 
 func (r *NominatimRepo) searchRequest(ctx context.Context, values url.Values) ([]entity.Address, error) {
-	var places []entity.NominatimPlace
+	var places []NominatimPlace
 	if err := r.doJSON(ctx, http.MethodGet, r.baseURL+"/search", values, &places); err != nil {
 		return nil, err
 	}
@@ -414,7 +414,7 @@ func (r *NominatimRepo) setCachedSearch(key string, addresses []entity.Address) 
 	r.searchCacheMu.Unlock()
 }
 
-func mapNominatimPlace(place entity.NominatimPlace) (entity.Address, error) {
+func mapNominatimPlace(place NominatimPlace) (entity.Address, error) {
 	lat, err := strconv.ParseFloat(place.Lat, 64)
 	if err != nil {
 		return entity.Address{}, fmt.Errorf("NominatimRepo - ParseFloat lat: %w", err)

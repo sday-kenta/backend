@@ -23,9 +23,9 @@ import (
 // @Param lat query number true "Широта точки" example(53.2051714)
 // @Param lon query number true "Долгота точки" example(50.1334676)
 // @Success 200 {object} response.ReverseGeocodeResponse "Найденный адрес по координатам"
-// @Failure 400 {object} response.ErrorResponse "Некорректные координаты или отсутствующие query-параметры"
-// @Failure 422 {object} response.ErrorResponse "Точка находится вне зоны работы проекта"
-// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервиса карт"
+// @Failure 400 {object} response.Error "Некорректные координаты или отсутствующие query-параметры"
+// @Failure 422 {object} response.Error "Точка находится вне зоны работы проекта"
+// @Failure 500 {object} response.Error "Внутренняя ошибка сервиса карт"
 // @Router /v1/maps/reverse [get]
 func (r *V1) reverseGeocode(ctx *fiber.Ctx) error {
 	lat, err := strconv.ParseFloat(strings.TrimSpace(ctx.Query("lat")), 64)
@@ -72,9 +72,9 @@ func (r *V1) reverseGeocode(ctx *fiber.Ctx) error {
 // @Produce json
 // @Param q query string true "Строка поиска адреса" example("Самара проспект Ленина 1")
 // @Success 200 {object} response.SearchAddressResponse "Список найденных адресов или пустой список"
-// @Failure 400 {object} response.ErrorResponse "Некорректный запрос, например пустой или слишком короткий q"
-// @Failure 422 {object} response.ErrorResponse "Найдены только адреса вне зоны работы проекта"
-// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервиса карт"
+// @Failure 400 {object} response.Error "Некорректный запрос, например пустой или слишком короткий q"
+// @Failure 422 {object} response.Error "Найдены только адреса вне зоны работы проекта"
+// @Failure 500 {object} response.Error "Внутренняя ошибка сервиса карт"
 // @Router /v1/maps/search [get]
 func (r *V1) searchAddresses(ctx *fiber.Ctx) error {
 	query := strings.TrimSpace(ctx.Query("q"))
