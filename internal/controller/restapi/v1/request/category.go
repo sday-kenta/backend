@@ -1,3 +1,5 @@
+// backend/internal/controller/restapi/v1/request/category.go
+
 package request
 
 // CreateCategory описывает HTTP-запрос на создание рубрики

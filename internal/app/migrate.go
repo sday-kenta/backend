@@ -5,11 +5,12 @@ package app
 import (
 	"errors"
 	"log"
+	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
-	// migrate tools
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
@@ -25,7 +26,7 @@ func init() {
 		log.Fatalf("migrate: environment variable not declared: PG_URL")
 	}
 
-	databaseURL += "?sslmode=disable"
+	databaseURL = ensureSSLMode(databaseURL)
 
 	var (
 		attempts = _defaultAttempts
@@ -60,4 +61,22 @@ func init() {
 	}
 
 	log.Printf("Migrate: up success")
+}
+
+func ensureSSLMode(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		if strings.Contains(raw, "sslmode=") {
+			return raw
+		}
+		return raw + "?sslmode=disable"
+	}
+
+	query := parsed.Query()
+	if query.Get("sslmode") == "" {
+		query.Set("sslmode", "disable")
+		parsed.RawQuery = query.Encode()
+	}
+
+	return parsed.String()
 }

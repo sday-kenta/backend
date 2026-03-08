@@ -1,5 +1,3 @@
-// backend/internal/usecase/contracts.go
-// Package usecase implements application business logic. Each logic group in own file.
 package usecase
 
 import (
@@ -8,7 +6,7 @@ import (
 	"github.com/evrone/go-clean-template/internal/entity"
 )
 
-//go:generate mockgen -source=interfaces.go -destination=./mocks_usecase_test.go -package=usecase_test
+//go:generate mockgen -source=contracts.go -destination=./mocks_usecase_test.go -package=usecase_test
 
 type (
 	Category interface {
@@ -17,5 +15,10 @@ type (
 		Create(ctx context.Context, input entity.CreateCategoryInput) (entity.Category, error)
 		Update(ctx context.Context, id int, input entity.UpdateCategoryInput) (entity.Category, error)
 		Delete(ctx context.Context, id int) error
+	}
+
+	Geo interface {
+		ReverseGeocode(ctx context.Context, lat, lon float64) (entity.Address, error)
+		Search(ctx context.Context, query string) ([]entity.Address, error)
 	}
 )

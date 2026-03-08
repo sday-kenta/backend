@@ -2,77 +2,62 @@ package config
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/caarlos0/env/v11"
 )
 
 type (
-	// Config -.
 	Config struct {
-		App  App
-		HTTP HTTP
-		Log  Log
-		PG   PG
-		//GRPC    GRPC
-		//RMQ     RMQ
-		//NATS    NATS
-		//Metrics Metrics
-		Swagger Swagger
+		App       App
+		HTTP      HTTP
+		Log       Log
+		PG        PG
+		Geo       Geo
+		Nominatim Nominatim
+		Swagger   Swagger
 	}
 
-	// App -.
 	App struct {
 		Name    string `env:"APP_NAME,required"`
 		Version string `env:"APP_VERSION,required"`
 	}
 
-	// HTTP -.
 	HTTP struct {
 		Port           string `env:"HTTP_PORT,required"`
 		UsePreforkMode bool   `env:"HTTP_USE_PREFORK_MODE" envDefault:"false"`
 	}
 
-	// Log -.
 	Log struct {
 		Level string `env:"LOG_LEVEL,required"`
 	}
 
-	// PG -.
 	PG struct {
 		PoolMax int    `env:"PG_POOL_MAX,required"`
 		URL     string `env:"PG_URL,required"`
 	}
 
-	// GRPC -.
-	// GRPC struct {
-	// 	Port string `env:"GRPC_PORT,required"`
-	// }
+	Geo struct {
+		ZoneName          string `env:"GEO_ZONE_NAME" envDefault:"samara"`
+		CacheRadiusMeters int    `env:"GEO_CACHE_RADIUS_METERS" envDefault:"20"`
+	}
 
-	// // RMQ -.
-	// RMQ struct {
-	// 	ServerExchange string `env:"RMQ_RPC_SERVER,required"`
-	// 	ClientExchange string `env:"RMQ_RPC_CLIENT,required"`
-	// 	URL            string `env:"RMQ_URL,required"`
-	// }
+	Nominatim struct {
+		BaseURL        string        `env:"NOMINATIM_BASE_URL" envDefault:"https://nominatim.openstreetmap.org"`
+		UserAgent      string        `env:"NOMINATIM_USER_AGENT" envDefault:"sday-kenta/1.0"`
+		Email          string        `env:"NOMINATIM_EMAIL"`
+		AcceptLanguage string        `env:"NOMINATIM_ACCEPT_LANGUAGE" envDefault:"ru"`
+		CountryCodes   string        `env:"NOMINATIM_COUNTRY_CODES" envDefault:"ru"`
+		SearchLimit    int           `env:"NOMINATIM_SEARCH_LIMIT" envDefault:"5"`
+		ReverseZoom    int           `env:"NOMINATIM_REVERSE_ZOOM" envDefault:"18"`
+		Timeout        time.Duration `env:"NOMINATIM_TIMEOUT" envDefault:"10s"`
+	}
 
-	// // NATS -.
-	// NATS struct {
-	// 	ServerExchange string `env:"NATS_RPC_SERVER,required"`
-	// 	URL            string `env:"NATS_URL,required"`
-	// }
-
-	// // Metrics -.
-	// Metrics struct {
-	// 	Enabled bool `env:"METRICS_ENABLED" envDefault:"true"`
-	// }
-
-	// Swagger -.
 	Swagger struct {
 		Enabled bool `env:"SWAGGER_ENABLED" envDefault:"false"`
 	}
 )
 
-// NewConfig returns app config.
 func NewConfig() (*Config, error) {
 	cfg := &Config{}
 	if err := env.Parse(cfg); err != nil {

@@ -1,1 +1,0 @@
-DELETE FROM zones WHERE name = 'samara';
