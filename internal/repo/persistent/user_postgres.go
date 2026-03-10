@@ -2,6 +2,7 @@ package persistent
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 
@@ -53,7 +54,7 @@ func (r *UserRepo) Create(ctx context.Context, u *entity.User) error {
 		return fmt.Errorf("UserRepo - Create - roles lookup: %w", err)
 	}
 
-	sql, args, err := r.Builder.
+	query, args, err := r.Builder.
 		Insert("users").
 		Columns(
 			"login",
@@ -91,7 +92,7 @@ func (r *UserRepo) Create(ctx context.Context, u *entity.User) error {
 		return fmt.Errorf("UserRepo - Create - r.Builder: %w", err)
 	}
 
-	row := r.Pool.QueryRow(ctx, sql, args...)
+	row := r.Pool.QueryRow(ctx, query, args...)
 
 	if err = row.Scan(&u.ID); err != nil {
 		return mapPgError(err)
@@ -102,7 +103,7 @@ func (r *UserRepo) Create(ctx context.Context, u *entity.User) error {
 
 // Delete removes a user by ID.
 func (r *UserRepo) Delete(ctx context.Context, id int64) error {
-	sql, args, err := r.Builder.
+	query, args, err := r.Builder.
 		Delete("users").
 		Where(squirrel.Eq{"id": id}).
 		Suffix("RETURNING id").
@@ -111,7 +112,7 @@ func (r *UserRepo) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("UserRepo - Delete - r.Builder: %w", err)
 	}
 
-	row := r.Pool.QueryRow(ctx, sql, args...)
+	row := r.Pool.QueryRow(ctx, query, args...)
 	var deletedID int64
 	if err = row.Scan(&deletedID); err != nil {
 		return mapPgError(err)
@@ -122,7 +123,7 @@ func (r *UserRepo) Delete(ctx context.Context, id int64) error {
 
 // GetByID returns a single user by ID.
 func (r *UserRepo) GetByID(ctx context.Context, id int64) (entity.User, error) {
-	sql, args, err := r.Builder.
+	query, args, err := r.Builder.
 		Select(
 			"u.id",
 			"u.login",
@@ -150,9 +151,14 @@ func (r *UserRepo) GetByID(ctx context.Context, id int64) (entity.User, error) {
 		return entity.User{}, fmt.Errorf("UserRepo - GetByID - r.Builder: %w", err)
 	}
 
-	row := r.Pool.QueryRow(ctx, sql, args...)
+	row := r.Pool.QueryRow(ctx, query, args...)
 
-	var u entity.User
+	var (
+		u          entity.User
+		middleName sql.NullString
+		apartment  sql.NullString
+		avatarURL  sql.NullString
+	)
 
 	err = row.Scan(
 		&u.ID,
@@ -161,13 +167,13 @@ func (r *UserRepo) GetByID(ctx context.Context, id int64) (entity.User, error) {
 		&u.PasswordHash,
 		&u.LastName,
 		&u.FirstName,
-		&u.MiddleName,
+		&middleName,
 		&u.Phone,
 		&u.City,
 		&u.Street,
 		&u.House,
-		&u.Apartment,
-		&u.AvatarURL,
+		&apartment,
+		&avatarURL,
 		&u.IsBlocked,
 		&u.Role,
 		&u.CreatedAt,
@@ -177,12 +183,22 @@ func (r *UserRepo) GetByID(ctx context.Context, id int64) (entity.User, error) {
 		return entity.User{}, mapPgError(err)
 	}
 
+	if middleName.Valid {
+		u.MiddleName = middleName.String
+	}
+	if apartment.Valid {
+		u.Apartment = apartment.String
+	}
+	if avatarURL.Valid {
+		u.AvatarURL = avatarURL.String
+	}
+
 	return u, nil
 }
 
 // List returns all users.
 func (r *UserRepo) List(ctx context.Context) ([]entity.User, error) {
-	sql, _, err := r.Builder.
+	query, _, err := r.Builder.
 		Select(
 			"u.id",
 			"u.login",
@@ -209,7 +225,7 @@ func (r *UserRepo) List(ctx context.Context) ([]entity.User, error) {
 		return nil, fmt.Errorf("UserRepo - List - r.Builder: %w", err)
 	}
 
-	rows, err := r.Pool.Query(ctx, sql)
+	rows, err := r.Pool.Query(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("UserRepo - List - r.Pool.Query: %w", err)
 	}
@@ -220,7 +236,12 @@ func (r *UserRepo) List(ctx context.Context) ([]entity.User, error) {
 	users := make([]entity.User, 0, defaultCap)
 
 	for rows.Next() {
-		var u entity.User
+		var (
+			u          entity.User
+			middleName sql.NullString
+			apartment  sql.NullString
+			avatarURL  sql.NullString
+		)
 
 		err = rows.Scan(
 			&u.ID,
@@ -229,13 +250,13 @@ func (r *UserRepo) List(ctx context.Context) ([]entity.User, error) {
 			&u.PasswordHash,
 			&u.LastName,
 			&u.FirstName,
-			&u.MiddleName,
+			&middleName,
 			&u.Phone,
 			&u.City,
 			&u.Street,
 			&u.House,
-			&u.Apartment,
-			&u.AvatarURL,
+			&apartment,
+			&avatarURL,
 			&u.IsBlocked,
 			&u.Role,
 			&u.CreatedAt,
@@ -243,6 +264,16 @@ func (r *UserRepo) List(ctx context.Context) ([]entity.User, error) {
 		)
 		if err != nil {
 			return nil, fmt.Errorf("UserRepo - List - rows.Scan: %w", err)
+		}
+
+		if middleName.Valid {
+			u.MiddleName = middleName.String
+		}
+		if apartment.Valid {
+			u.Apartment = apartment.String
+		}
+		if avatarURL.Valid {
+			u.AvatarURL = avatarURL.String
 		}
 
 		users = append(users, u)
@@ -253,7 +284,7 @@ func (r *UserRepo) List(ctx context.Context) ([]entity.User, error) {
 
 // Update updates user fields by ID.
 func (r *UserRepo) Update(ctx context.Context, u *entity.User) error {
-	sql, args, err := r.Builder.
+	query, args, err := r.Builder.
 		Update("users").
 		Set("login", u.Login).
 		Set("email", u.Email).
@@ -275,7 +306,7 @@ func (r *UserRepo) Update(ctx context.Context, u *entity.User) error {
 	}
 
 	var updatedID int64
-	if err = r.Pool.QueryRow(ctx, sql, args...).Scan(&updatedID); err != nil {
+	if err = r.Pool.QueryRow(ctx, query, args...).Scan(&updatedID); err != nil {
 		return mapPgError(err)
 	}
 
@@ -284,7 +315,7 @@ func (r *UserRepo) Update(ctx context.Context, u *entity.User) error {
 
 // UpdateAvatar updates the avatar identifier/URL for a user by ID.
 func (r *UserRepo) UpdateAvatar(ctx context.Context, id int64, avatarURL string) error {
-	sql, args, err := r.Builder.
+	query, args, err := r.Builder.
 		Update("users").
 		Set("avatar_url", avatarURL).
 		Where(squirrel.Eq{"id": id}).
@@ -295,7 +326,7 @@ func (r *UserRepo) UpdateAvatar(ctx context.Context, id int64, avatarURL string)
 	}
 
 	var updatedID int64
-	if err = r.Pool.QueryRow(ctx, sql, args...).Scan(&updatedID); err != nil {
+	if err = r.Pool.QueryRow(ctx, query, args...).Scan(&updatedID); err != nil {
 		return mapPgError(err)
 	}
 
