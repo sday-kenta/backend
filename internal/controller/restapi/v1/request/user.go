@@ -2,7 +2,7 @@ package request
 
 type CreateUser struct {
 	Login       string `json:"login"        validate:"required"  example:"user123"`
-	Email       string `json:"email"        validate:"required"  example:"user@example.com"`
+	Email       string `json:"email"        validate:"required,email"  example:"user@example.com"`
 	Password    string `json:"password"     validate:"required"  example:"qwerty123"`
 	LastName    string `json:"last_name"    validate:"required"  example:"Иванов"`
 	FirstName   string `json:"first_name"   validate:"required"  example:"Иван"`
@@ -18,7 +18,7 @@ type CreateUser struct {
 
 type UpdateUser struct {
 	Login      string `json:"login"        validate:"required"  example:"user123"`
-	Email      string `json:"email"        validate:"required"  example:"user@example.com"`
+	Email      string `json:"email"        validate:"required,email"  example:"user@example.com"`
 	LastName   string `json:"last_name"    validate:"required"  example:"Иванов"`
 	FirstName  string `json:"first_name"   validate:"required"  example:"Иван"`
 	MiddleName string `json:"middle_name"  example:"Иванович"`

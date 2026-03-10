@@ -277,10 +277,14 @@ func (r *UsersV1) uploadAvatar(ctx *fiber.Ctx) error {
 		return errorResponse(ctx, http.StatusBadRequest, "avatar file too large (max 2MB)")
 	}
 
-	ext := filepath.Ext(fileHeader.Filename)
-	if ext == "" {
-		ext = ".img"
+	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
+	switch ext {
+	case ".png", ".jpg", ".jpeg":
+		// ok
+	default:
+		return errorResponse(ctx, http.StatusBadRequest, "avatar file must be PNG or JPG")
 	}
+
 	avatarKey := fmt.Sprintf("user-%d-%d%s", id, time.Now().UnixNano(), ext)
 
 	if err = r.u.UpdateAvatar(ctx.UserContext(), id, avatarKey); err != nil {

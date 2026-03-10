@@ -1,4 +1,6 @@
--- Add avatar column to users table for storing user profile pictures
+-- Legacy migration was adding `avatar BYTEA` column.
+-- We now store only an avatar identifier/URL in `avatar_url` (TEXT) for S3.
+-- To avoid unused binary column, ensure it is removed.
 ALTER TABLE users
-    ADD COLUMN IF NOT EXISTS avatar BYTEA;
+    DROP COLUMN IF EXISTS avatar;
 

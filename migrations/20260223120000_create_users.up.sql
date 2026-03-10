@@ -15,7 +15,6 @@ CREATE TABLE IF NOT EXISTS users (
     apartment      VARCHAR(50),
 
     is_blocked     BOOLEAN      NOT NULL DEFAULT FALSE,
-    is_admin       BOOLEAN      NOT NULL DEFAULT FALSE,
 
     created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()

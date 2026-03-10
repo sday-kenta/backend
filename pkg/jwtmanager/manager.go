@@ -22,19 +22,19 @@ func New(secret string, ttl time.Duration) *Manager {
 
 // Claims describes JWT payload used in the project.
 type Claims struct {
-	UserID  int64 `json:"user_id"`
-	IsAdmin bool  `json:"is_admin"`
+	UserID int64  `json:"user_id"`
+	Role   string `json:"role"`
 
 	jwt.RegisteredClaims
 }
 
 // Generate creates a signed JWT token for a user.
-func (m *Manager) Generate(userID int64, isAdmin bool) (string, error) {
+func (m *Manager) Generate(userID int64, role string) (string, error) {
 	now := time.Now()
 
 	claims := Claims{
-		UserID:  userID,
-		IsAdmin: isAdmin,
+		UserID: userID,
+		Role:   role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(m.ttl)),
