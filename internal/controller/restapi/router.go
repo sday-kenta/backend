@@ -55,6 +55,6 @@ func NewRouter(app *fiber.App, cfg *config.Config, t usecase.Translation, u usec
 	apiV1Group := app.Group("/v1")
 	{
 		v1.NewTranslationRoutes(apiV1Group, t, l)
-		v1.NewUserRoutes(apiV1Group, u, l)
+		v1.NewUserRoutes(apiV1Group, u, l, cfg.CDN.AvatarBaseURL)
 	}
 }

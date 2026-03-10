@@ -20,8 +20,13 @@ func NewTranslationRoutes(apiV1Group fiber.Router, t usecase.Translation, l logg
 }
 
 // NewUserRoutes registers user routes.
-func NewUserRoutes(apiV1Group fiber.Router, u usecase.User, l logger.Interface) {
-	r := &UsersV1{u: u, l: l, v: validator.New(validator.WithRequiredStructEnabled())}
+func NewUserRoutes(apiV1Group fiber.Router, u usecase.User, l logger.Interface, avatarBaseURL string) {
+	r := &UsersV1{
+		u:             u,
+		l:             l,
+		v:             validator.New(validator.WithRequiredStructEnabled()),
+		avatarBaseURL: avatarBaseURL,
+	}
 
 	usersGroup := apiV1Group.Group("/users")
 

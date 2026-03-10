@@ -62,9 +62,10 @@ func formatValidationError(err error) string {
 
 // UsersV1 handles user-related endpoints.
 type UsersV1 struct {
-	u usecase.User
-	l logger.Interface
-	v *validator.Validate
+	u             usecase.User
+	l             logger.Interface
+	v             *validator.Validate
+	avatarBaseURL string
 }
 
 // @Summary     Create user
@@ -286,8 +287,13 @@ func (r *UsersV1) uploadAvatar(ctx *fiber.Ctx) error {
 	}
 
 	avatarKey := fmt.Sprintf("user-%d-%d%s", id, time.Now().UnixNano(), ext)
+	avatarValue := avatarKey
+	if r.avatarBaseURL != "" {
+		base := strings.TrimRight(r.avatarBaseURL, "/")
+		avatarValue = fmt.Sprintf("%s/%s", base, avatarKey)
+	}
 
-	if err = r.u.UpdateAvatar(ctx.UserContext(), id, avatarKey); err != nil {
+	if err = r.u.UpdateAvatar(ctx.UserContext(), id, avatarValue); err != nil {
 		r.l.Error(err, "restapi - v1 - uploadAvatar")
 		return userErrorResponse(ctx, err)
 	}
