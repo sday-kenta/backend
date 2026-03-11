@@ -291,6 +291,8 @@ func (r *UsersV1) uploadAvatar(ctx *fiber.Ctx) error {
 		return errorResponse(ctx, http.StatusBadRequest, "avatar file must be PNG or JPG")
 	}
 
+	avatarKey := fmt.Sprintf("user-%d-%d%s", id, time.Now().UnixNano(), ext)
+
 	bucket := os.Getenv("AWS_S3_BUCKET")
 	endpoint := os.Getenv("AWS_S3_ENDPOINT")
 	region := os.Getenv("AWS_REGION")
@@ -344,11 +346,16 @@ func (r *UsersV1) uploadAvatar(ctx *fiber.Ctx) error {
 		o.UsePathStyle = true
 	})
 
+	contentType := fileHeader.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
 	_, err = s3Client.PutObject(ctx.UserContext(), &s3.PutObjectInput{
 		Bucket:      aws.String(bucket),
-		Key:         aws.String(fmt.Sprintf("user-%d-%d%s", id, time.Now().UnixNano(), ext)),
+		Key:         aws.String(avatarKey),
 		Body:        file,
-		ContentType: aws.String(fileHeader.Header.Get("Content-Type")),
+		ContentType: aws.String(contentType),
 	})
 	if err != nil {
 		r.l.Error(err, "restapi - v1 - uploadAvatar - PutObject")
@@ -356,7 +363,6 @@ func (r *UsersV1) uploadAvatar(ctx *fiber.Ctx) error {
 		return errorResponse(ctx, http.StatusInternalServerError, "failed to upload avatar")
 	}
 
-	avatarKey := fmt.Sprintf("user-%d-%d%s", id, time.Now().UnixNano(), ext)
 	avatarValue := avatarKey
 	if r.avatarBaseURL != "" {
 		base := strings.TrimRight(r.avatarBaseURL, "/")
