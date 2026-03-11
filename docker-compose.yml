@@ -136,6 +136,21 @@ services:
         aliases:
           - minio.lvh.me
 
+  mc-init:
+    container_name: mc-init
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin123 &&
+      mc anonymous set download local/avatars || true
+      "
+    networks:
+      app_network:
+        aliases:
+          - mc.lvh.me
+
   nginx:
     container_name: nginx
     image: nginx:1.29.5-alpine
