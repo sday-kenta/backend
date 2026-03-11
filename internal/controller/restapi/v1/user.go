@@ -12,6 +12,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awscfg "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/evrone/go-clean-template/internal/controller/restapi/v1/request"
 	"github.com/evrone/go-clean-template/internal/entity"
@@ -290,40 +291,72 @@ func (r *UsersV1) uploadAvatar(ctx *fiber.Ctx) error {
 		return errorResponse(ctx, http.StatusBadRequest, "avatar file must be PNG or JPG")
 	}
 
-	avatarKey := fmt.Sprintf("user-%d-%d%s", id, time.Now().UnixNano(), ext)
-
-	// Upload to S3-compatible storage.
 	bucket := os.Getenv("AWS_S3_BUCKET")
-	if bucket == "" {
+	endpoint := os.Getenv("AWS_S3_ENDPOINT")
+	region := os.Getenv("AWS_REGION")
+	accessKey := os.Getenv("AWS_ACCESS_KEY_ID")
+	secretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+
+	if bucket == "" || endpoint == "" || region == "" || accessKey == "" || secretKey == "" {
 		return errorResponse(ctx, http.StatusInternalServerError, "avatar storage is not configured")
 	}
 
 	file, err := fileHeader.Open()
 	if err != nil {
 		r.l.Error(err, "restapi - v1 - uploadAvatar - FormFile.Open")
+
 		return errorResponse(ctx, http.StatusInternalServerError, "failed to read avatar file")
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
-	awsCfg, err := awscfg.LoadDefaultConfig(ctx.UserContext())
+	awsCfg, err := awscfg.LoadDefaultConfig(
+		ctx.UserContext(),
+		awscfg.WithRegion(region),
+		awscfg.WithCredentialsProvider(
+			aws.NewCredentialsCache(
+				credentials.NewStaticCredentialsProvider(accessKey, secretKey, ""),
+			),
+		),
+		awscfg.WithEndpointResolverWithOptions(
+			aws.EndpointResolverWithOptionsFunc(
+				func(service, _ string, _ ...interface{}) (aws.Endpoint, error) {
+					if service == s3.ServiceID {
+						return aws.Endpoint{
+							URL:               endpoint,
+							HostnameImmutable: true,
+						}, nil
+					}
+
+					return aws.Endpoint{}, &aws.EndpointNotFoundError{}
+				},
+			),
+		),
+	)
 	if err != nil {
 		r.l.Error(err, "restapi - v1 - uploadAvatar - LoadDefaultConfig")
+
 		return errorResponse(ctx, http.StatusInternalServerError, "failed to initialize avatar storage")
 	}
 
-	s3Client := s3.NewFromConfig(awsCfg)
+	s3Client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
+		o.UsePathStyle = true
+	})
 
 	_, err = s3Client.PutObject(ctx.UserContext(), &s3.PutObjectInput{
 		Bucket:      aws.String(bucket),
-		Key:         aws.String(avatarKey),
+		Key:         aws.String(fmt.Sprintf("user-%d-%d%s", id, time.Now().UnixNano(), ext)),
 		Body:        file,
 		ContentType: aws.String(fileHeader.Header.Get("Content-Type")),
 	})
 	if err != nil {
 		r.l.Error(err, "restapi - v1 - uploadAvatar - PutObject")
+
 		return errorResponse(ctx, http.StatusInternalServerError, "failed to upload avatar")
 	}
 
+	avatarKey := fmt.Sprintf("user-%d-%d%s", id, time.Now().UnixNano(), ext)
 	avatarValue := avatarKey
 	if r.avatarBaseURL != "" {
 		base := strings.TrimRight(r.avatarBaseURL, "/")
