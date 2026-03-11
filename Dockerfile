@@ -15,7 +15,8 @@ COPY . /app
 
 WORKDIR /app
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+RUN go mod tidy && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -tags migrate -o /bin/app ./cmd/app
 
 # Step 3: Final
