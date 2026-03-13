@@ -93,12 +93,19 @@ services:
       context: .
     environment:
       <<: *x-backend-app-environment
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin123
+      AWS_S3_BUCKET: avatars
+      AWS_S3_ENDPOINT: http://minio:9000
+      AVATAR_BASE_URL: http://localhost:9000/avatars
     ports:
       - "8080:8080"
       - "8081:8081"
     depends_on:
       - db
       - rabbitmq
+      - nats
     deploy:
       resources:
         limits:
@@ -111,6 +118,38 @@ services:
       app_network:
         aliases:
           - app.lvh.me
+
+  minio:
+    container_name: minio
+    image: minio/minio:latest
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      app_network:
+        aliases:
+          - minio.lvh.me
+
+  mc-init:
+    container_name: mc-init
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin123 &&
+      mc anonymous set download local/avatars || true
+      "
+    networks:
+      app_network:
+        aliases:
+          - mc.lvh.me
 
   nginx:
     container_name: nginx
@@ -137,3 +176,4 @@ volumes:
   db_data:
   rabbitmq_data:
   nats_data:
+  minio_data:

@@ -18,6 +18,7 @@ type (
 		NATS    NATS
 		Metrics Metrics
 		Swagger Swagger
+		CDN     CDN
 	}
 
 	// App -.
@@ -69,6 +70,11 @@ type (
 	// Swagger -.
 	Swagger struct {
 		Enabled bool `env:"SWAGGER_ENABLED" envDefault:"false"`
+	}
+
+	// CDN / static file settings.
+	CDN struct {
+		AvatarBaseURL string `env:"AVATAR_BASE_URL" envDefault:""`
 	}
 )
 
