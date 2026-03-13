@@ -14,11 +14,6 @@ import (
 )
 
 // NewRouter configures HTTP routes.
-// @title       Сознательный гражданин API
-// @description API для мобильного приложения и админ-панели проекта "ЭкоВыбор"
-// @version     1.0
-// @host        localhost:8080
-// @BasePath    /v1
 func NewRouter(app *fiber.App, cfg *config.Config, c usecase.Category, g usecase.Geo, l logger.Interface) {
 	app.Use(middleware.Logger(l))
 	app.Use(middleware.Recovery(l))

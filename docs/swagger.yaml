@@ -1,3 +1,4 @@
+basePath: /v1
 definitions:
   entity.Category:
     properties:
@@ -70,8 +71,12 @@ definitions:
         example: success
         type: string
     type: object
+host: localhost:8080
 info:
   contact: {}
+  description: API для мобильного приложения и админ-панели проекта "ЭкоВыбор"
+  title: Сознательный гражданин API
+  version: "1.0"
 paths:
   /categories:
     get:
@@ -254,7 +259,7 @@ paths:
       summary: Update a category
       tags:
       - categories
-  /v1/maps/reverse:
+  /maps/reverse:
     get:
       consumes:
       - application/json
@@ -299,7 +304,7 @@ paths:
       summary: Получение адреса по координатам
       tags:
       - maps
-  /v1/maps/search:
+  /maps/search:
     get:
       consumes:
       - application/json

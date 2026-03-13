@@ -282,7 +282,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/maps/reverse": {
+        "/maps/reverse": {
             "get": {
                 "description": "Выполняет reverse geocoding: по координатам точки на карте возвращает человекочитаемый адрес.\nИспользуется, когда пользователь выбирает место на карте, а frontend должен показать адрес выбранной точки.\n\nЕсли точка находится вне разрешённой области работы проекта, возвращается ошибка.\nЕсли точка находится внутри разрешённой области, backend пытается определить адрес через локальный кеш и/или Nominatim/OpenStreetMap.",
                 "consumes": [
@@ -341,7 +341,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/maps/search": {
+        "/maps/search": {
             "get": {
                 "description": "Выполняет поиск адреса по текстовому запросу пользователя через Nominatim/OpenStreetMap. Используется, когда пользователь вводит адрес вручную в строке поиска на карте.\n\nПоиск ограничивается адресами, релевантными для зоны работы проекта. Если найдены только адреса вне разрешённой области, возвращается ошибка.\nЕсли по запросу не найдено ни одного подходящего адреса, возвращается успешный ответ с пустым списком.\n\nПримеры запросов:\n- \"Самара проспект Ленина 1\"\n- \"Самара Ленина 1\"\n- \"Ленина 1\"",
                 "consumes": [
@@ -503,12 +503,12 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "",
-	Host:             "",
-	BasePath:         "",
+	Version:          "1.0",
+	Host:             "localhost:8080",
+	BasePath:         "/v1",
 	Schemes:          []string{},
-	Title:            "",
-	Description:      "",
+	Title:            "Сознательный гражданин API",
+	Description:      "API для мобильного приложения и админ-панели проекта \"ЭкоВыбор\"",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

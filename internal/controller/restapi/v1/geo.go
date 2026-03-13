@@ -26,7 +26,7 @@ import (
 // @Failure 400 {object} response.Error "Некорректные координаты или отсутствующие query-параметры"
 // @Failure 422 {object} response.Error "Точка находится вне зоны работы проекта"
 // @Failure 500 {object} response.Error "Внутренняя ошибка сервиса карт"
-// @Router /v1/maps/reverse [get]
+// @Router /maps/reverse [get]
 func (r *V1) reverseGeocode(ctx *fiber.Ctx) error {
 	lat, err := strconv.ParseFloat(strings.TrimSpace(ctx.Query("lat")), 64)
 	if err != nil {
@@ -75,7 +75,7 @@ func (r *V1) reverseGeocode(ctx *fiber.Ctx) error {
 // @Failure 400 {object} response.Error "Некорректный запрос, например пустой или слишком короткий q"
 // @Failure 422 {object} response.Error "Найдены только адреса вне зоны работы проекта"
 // @Failure 500 {object} response.Error "Внутренняя ошибка сервиса карт"
-// @Router /v1/maps/search [get]
+// @Router /maps/search [get]
 func (r *V1) searchAddresses(ctx *fiber.Ctx) error {
 	query := strings.TrimSpace(ctx.Query("q"))
 	addresses, err := r.g.Search(ctx.UserContext(), query)
