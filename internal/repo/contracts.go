@@ -38,13 +38,17 @@ type (
 		// SaveAddress сохраняет новый адрес в кэш
 		SaveAddress(ctx context.Context, addr entity.Address) error
 
-		// IsInAllowedZone проверяет, попадает ли точка в зону работы (Самару)
-		IsInAllowedZone(ctx context.Context, lat, lon float64) (bool, error)
+		// IsPointInZone проверяет, попадает ли точка в конкретную зону работы
+		IsPointInZone(ctx context.Context, lat, lon float64, zoneName string) (bool, error)
+		// FindContainingZone ищет первую зону, в которую попадает точка.
+		FindContainingZone(ctx context.Context, lat, lon float64) (entity.Zone, error)
+		// GetZones returns supported project zones with user-facing display names.
+		GetZones(ctx context.Context) ([]entity.Zone, error)
 	}
 
 	// GeoWebAPI описывает работу с внешним сервисом Nominatim
 	GeoWebAPI interface {
 		Reverse(ctx context.Context, lat, lon float64) (entity.Address, error)
-		Search(ctx context.Context, query string) ([]entity.Address, error)
+		Search(ctx context.Context, query, city string) ([]entity.Address, error)
 	}
 )

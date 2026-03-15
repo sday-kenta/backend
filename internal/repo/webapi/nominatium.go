@@ -28,7 +28,6 @@ const (
 	defaultNominatimReverseZoom    = 18
 	defaultPublicAPIMinInterval    = time.Second
 	searchCacheTTL                 = 5 * time.Minute
-	defaultSearchCity              = "Самара"
 )
 
 var (
@@ -163,9 +162,9 @@ func (r *NominatimRepo) Reverse(ctx context.Context, lat, lon float64) (entity.A
 	return address, nil
 }
 
-func (r *NominatimRepo) Search(ctx context.Context, query string) ([]entity.Address, error) {
-	parsed := parseAddressQuery(query)
-	cacheKey := parsed.Normalized
+func (r *NominatimRepo) Search(ctx context.Context, query, city string) ([]entity.Address, error) {
+	parsed := parseAddressQuery(query, city)
+	cacheKey := parsed.Normalized + "|" + normalizeString(parsed.City)
 	if cached, ok := r.getCachedSearch(cacheKey); ok {
 		return cached, nil
 	}
@@ -173,9 +172,9 @@ func (r *NominatimRepo) Search(ctx context.Context, query string) ([]entity.Addr
 	collected := make([]entity.Address, 0, r.searchLimit)
 	seen := make(map[string]struct{})
 
-	freeFormQueries := r.buildFreeFormSearchQueries(parsed)
-	for _, freeFormValues := range freeFormQueries {
-		addresses, err := r.searchRequest(ctx, freeFormValues)
+	structuredQueries := r.buildStructuredSearchQueries(parsed)
+	for _, structuredValues := range structuredQueries {
+		addresses, err := r.searchRequest(ctx, structuredValues)
 		if err != nil {
 			return nil, err
 		}
@@ -184,6 +183,22 @@ func (r *NominatimRepo) Search(ctx context.Context, query string) ([]entity.Addr
 		matched := rankAndFilterSearchResults(parsed, collected, r.searchLimit)
 		if len(matched) > 0 {
 			break
+		}
+	}
+
+	if len(rankAndFilterSearchResults(parsed, collected, r.searchLimit)) == 0 {
+		freeFormQueries := r.buildFreeFormSearchQueries(parsed)
+		for _, freeFormValues := range freeFormQueries {
+			addresses, err := r.searchRequest(ctx, freeFormValues)
+			if err != nil {
+				return nil, err
+			}
+			collected = appendUniqueAddresses(collected, addresses, seen)
+
+			matched := rankAndFilterSearchResults(parsed, collected, r.searchLimit)
+			if len(matched) > 0 {
+				break
+			}
 		}
 	}
 
@@ -221,7 +236,7 @@ func (r *NominatimRepo) buildStructuredSearchQueries(parsed parsedAddressQuery) 
 
 	streetVariants := []string{parsed.Street}
 	if parsed.HouseNumber != "" {
-		streetVariants = append(streetVariants, parsed.Street+" "+parsed.HouseNumber, parsed.HouseNumber+" "+parsed.Street)
+		streetVariants = []string{parsed.HouseNumber + " " + parsed.Street}
 	}
 
 	queries := make([]url.Values, 0, len(streetVariants))
@@ -239,8 +254,9 @@ func (r *NominatimRepo) buildStructuredSearchQueries(parsed parsedAddressQuery) 
 
 		values := r.baseSearchValues()
 		values.Set("street", street)
-		values.Set("city", parsed.City)
-		values.Set("country", "Россия")
+		if parsed.City != "" {
+			values.Set("city", parsed.City)
+		}
 		values.Set("layer", "address")
 		queries = append(queries, values)
 	}
@@ -249,69 +265,32 @@ func (r *NominatimRepo) buildStructuredSearchQueries(parsed parsedAddressQuery) 
 }
 
 func (r *NominatimRepo) buildFreeFormSearchQueries(parsed parsedAddressQuery) []url.Values {
-	queries := make([]url.Values, 0, 4)
-	variants := make([]string, 0, 6)
+	variant := strings.TrimSpace(parsed.Original)
 
-	original := strings.TrimSpace(parsed.Original)
-	if original != "" {
-		variants = append(variants, original)
-	}
-
-	cityForBias := parsed.City
-	if cityForBias == "" {
-		cityForBias = defaultSearchCity
-	}
-
-	if parsed.Street != "" {
-		if hasExplicitStreetType(parsed.Street) {
-			variant := buildFreeFormAddress(cityForBias, parsed.Street, parsed.HouseNumber)
-			if variant != "" {
-				variants = append(variants, variant)
-			}
-		} else {
-			expanded := expandStreetVariants(parsed.Street)
-			for i, expandedStreet := range expanded {
-				if i >= 2 {
-					break
-				}
-				variant := buildFreeFormAddress(cityForBias, expandedStreet, parsed.HouseNumber)
-				if variant != "" {
-					variants = append(variants, variant)
-				}
-			}
+	streetForSearch := parsed.Street
+	if streetForSearch != "" && !hasExplicitStreetType(streetForSearch) {
+		expanded := expandStreetVariants(streetForSearch)
+		if len(expanded) > 0 {
+			streetForSearch = expanded[0]
 		}
 	}
 
-	formatted := buildFreeFormAddress(parsed.City, parsed.Street, parsed.HouseNumber)
+	formatted := buildFreeFormAddress(parsed.City, streetForSearch, parsed.HouseNumber)
 	if formatted != "" {
-		variants = append(variants, formatted)
+		variant = formatted
 	}
 
-	if parsed.City == "" && strings.TrimSpace(parsed.Original) != "" {
-		variants = append(variants, strings.TrimSpace(parsed.Original+", "+defaultSearchCity))
+	if variant == "" && parsed.City != "" {
+		variant = buildFreeFormAddress(parsed.City, parsed.Original, "")
+	}
+	variant = strings.TrimSpace(variant)
+	if variant == "" {
+		return nil
 	}
 
-	seen := make(map[string]struct{})
-	for _, variant := range variants {
-		variant = strings.TrimSpace(variant)
-		if variant == "" {
-			continue
-		}
-		key := normalizeString(variant)
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-
-		values := r.baseSearchValues()
-		values.Set("q", variant)
-		queries = append(queries, values)
-		if len(queries) >= 4 {
-			break
-		}
-	}
-
-	return queries
+	values := r.baseSearchValues()
+	values.Set("q", variant)
+	return []url.Values{values}
 }
 
 func (r *NominatimRepo) baseSearchValues() url.Values {
@@ -439,19 +418,18 @@ func mapNominatimPlace(place NominatimPlace) (entity.Address, error) {
 	}, nil
 }
 
-func parseAddressQuery(query string) parsedAddressQuery {
+func parseAddressQuery(query, city string) parsedAddressQuery {
 	normalized := normalizeQuery(query)
 	parsed := parsedAddressQuery{
 		Original:   strings.TrimSpace(query),
 		Normalized: normalized,
+		City:       strings.TrimSpace(city),
 	}
 
 	working := normalized
-	for _, marker := range []string{"самара", "г самара", "город самара"} {
-		if strings.Contains(working, marker) {
-			parsed.City = defaultSearchCity
-		}
-		working = strings.ReplaceAll(working, marker, " ")
+	cityNorm := normalizeQuery(parsed.City)
+	if cityNorm != "" && strings.Contains(working, cityNorm) {
+		working = strings.ReplaceAll(working, cityNorm, " ")
 	}
 	working = normalizeQuery(working)
 
@@ -466,13 +444,15 @@ func parseAddressQuery(query string) parsedAddressQuery {
 	}
 
 	parts := make([]string, 0, 3)
+	if parsed.City != "" {
+		parts = append(parts, parsed.City)
+	}
 	if parsed.Street != "" {
 		parts = append(parts, parsed.Street)
 	}
 	if parsed.HouseNumber != "" {
 		parts = append(parts, parsed.HouseNumber)
 	}
-	parts = append(parts, parsed.City)
 	parsed.FreeFormQuery = strings.Join(parts, ", ")
 
 	return parsed

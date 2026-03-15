@@ -3,6 +3,7 @@ CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE TABLE IF NOT EXISTS zones (
     id serial PRIMARY KEY,
     name text NOT NULL UNIQUE,
+    display_name text NOT NULL,
     geom geometry(MultiPolygon, 4326) NOT NULL
 );
 

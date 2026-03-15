@@ -19,6 +19,7 @@ type (
 
 	Geo interface {
 		ReverseGeocode(ctx context.Context, lat, lon float64) (entity.Address, error)
-		Search(ctx context.Context, query string) ([]entity.Address, error)
+		Search(ctx context.Context, query, city string) ([]entity.Address, error)
+		ReloadCities(ctx context.Context) error
 	}
 )

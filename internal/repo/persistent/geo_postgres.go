@@ -12,27 +12,20 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-const defaultZoneName = "samara"
-
 // GeoRepo persists cached addresses and validates project area via PostGIS.
 type GeoRepo struct {
 	*postgres.Postgres
 	cacheRadiusMeters int
-	zoneName          string
 }
 
-func NewGeoRepo(pg *postgres.Postgres, cacheRadiusMeters int, zoneName string) *GeoRepo {
+func NewGeoRepo(pg *postgres.Postgres, cacheRadiusMeters int) *GeoRepo {
 	if cacheRadiusMeters <= 0 {
 		cacheRadiusMeters = 20
-	}
-	if zoneName == "" {
-		zoneName = defaultZoneName
 	}
 
 	return &GeoRepo{
 		Postgres:          pg,
 		cacheRadiusMeters: cacheRadiusMeters,
-		zoneName:          zoneName,
 	}
 }
 
@@ -117,7 +110,44 @@ func (r *GeoRepo) SaveAddress(ctx context.Context, addr entity.Address) error {
 	return nil
 }
 
-func (r *GeoRepo) IsInAllowedZone(ctx context.Context, lat, lon float64) (bool, error) {
+func (r *GeoRepo) GetZones(ctx context.Context) ([]entity.Zone, error) {
+	rows, err := r.Pool.Query(ctx, `
+		SELECT name, COALESCE(NULLIF(BTRIM(display_name), ''), name)
+		FROM zones
+		ORDER BY id`)
+	if err != nil {
+		return nil, fmt.Errorf("GeoRepo - GetZones - r.Pool.Query: %w", err)
+	}
+	defer rows.Close()
+
+	result := make([]entity.Zone, 0)
+	for rows.Next() {
+		var zone entity.Zone
+		if err := rows.Scan(&zone.Name, &zone.DisplayName); err != nil {
+			return nil, fmt.Errorf("GeoRepo - GetZones - rows.Scan: %w", err)
+		}
+		zone.Name = strings.TrimSpace(zone.Name)
+		zone.DisplayName = strings.TrimSpace(zone.DisplayName)
+		if zone.Name == "" {
+			continue
+		}
+		if zone.DisplayName == "" {
+			zone.DisplayName = zone.Name
+		}
+		result = append(result, zone)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("GeoRepo - GetZones - rows.Err: %w", err)
+	}
+	return result, nil
+}
+
+func (r *GeoRepo) IsPointInZone(ctx context.Context, lat, lon float64, zoneName string) (bool, error) {
+	zoneName = strings.TrimSpace(zoneName)
+	if zoneName == "" {
+		return false, entity.ErrZoneNotFound
+	}
+
 	sql := `
 SELECT EXISTS (
     SELECT 1
@@ -127,9 +157,32 @@ SELECT EXISTS (
 )`
 
 	var allowed bool
-	if err := r.Pool.QueryRow(ctx, sql, r.zoneName, lon, lat).Scan(&allowed); err != nil {
-		return false, fmt.Errorf("GeoRepo - IsInAllowedZone - r.Pool.QueryRow: %w", err)
+	if err := r.Pool.QueryRow(ctx, sql, zoneName, lon, lat).Scan(&allowed); err != nil {
+		return false, fmt.Errorf("GeoRepo - IsPointInZone - r.Pool.QueryRow: %w", err)
 	}
 
 	return allowed, nil
+}
+
+func (r *GeoRepo) FindContainingZone(ctx context.Context, lat, lon float64) (entity.Zone, error) {
+	sql := `
+SELECT name, COALESCE(NULLIF(BTRIM(display_name), ''), name)
+FROM zones
+WHERE ST_Covers(geom, ST_SetSRID(ST_MakePoint($1, $2), 4326))
+ORDER BY ST_Area(geom) ASC, id ASC
+LIMIT 1`
+
+	var zone entity.Zone
+	if err := r.Pool.QueryRow(ctx, sql, lon, lat).Scan(&zone.Name, &zone.DisplayName); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return entity.Zone{}, entity.ErrZoneNotFound
+		}
+		return entity.Zone{}, fmt.Errorf("GeoRepo - FindContainingZone - r.Pool.QueryRow: %w", err)
+	}
+	zone.Name = strings.TrimSpace(zone.Name)
+	zone.DisplayName = strings.TrimSpace(zone.DisplayName)
+	if zone.DisplayName == "" {
+		zone.DisplayName = zone.Name
+	}
+	return zone, nil
 }

@@ -259,6 +259,38 @@ paths:
       summary: Update a category
       tags:
       - categories
+  /maps/reload-cities:
+    post:
+      consumes:
+      - application/json
+      description: Reloads in-memory supported cities from zones table. Admin only.
+      parameters:
+      - default: admin
+        description: User role (must be 'admin')
+        in: header
+        name: X-User-Role
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Reload successful
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Access denied
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Reload supported cities cache
+      tags:
+      - maps
   /maps/reverse:
     get:
       consumes:
@@ -267,8 +299,8 @@ paths:
         Выполняет reverse geocoding: по координатам точки на карте возвращает человекочитаемый адрес.
         Используется, когда пользователь выбирает место на карте, а frontend должен показать адрес выбранной точки.
 
-        Если точка находится вне разрешённой области работы проекта, возвращается ошибка.
-        Если точка находится внутри разрешённой области, backend пытается определить адрес через локальный кеш и/или Nominatim/OpenStreetMap.
+        Сначала backend локально проверяет, попадает ли точка хотя бы в одну поддерживаемую зону проекта в PostGIS.
+        Если точка не попадает ни в одну зону, возвращается ошибка. Если попадает, backend определяет адрес через локальный кеш и/или Nominatim/OpenStreetMap.
       parameters:
       - description: Широта точки
         example: 53.2051714
@@ -293,6 +325,10 @@ paths:
           description: Некорректные координаты или отсутствующие query-параметры
           schema:
             $ref: '#/definitions/response.Error'
+        "404":
+          description: Адрес по координатам не найден
+          schema:
+            $ref: '#/definitions/response.Error'
         "422":
           description: Точка находится вне зоны работы проекта
           schema:
@@ -311,33 +347,47 @@ paths:
       description: |-
         Выполняет поиск адреса по текстовому запросу пользователя через Nominatim/OpenStreetMap. Используется, когда пользователь вводит адрес вручную в строке поиска на карте.
 
-        Поиск ограничивается адресами, релевантными для зоны работы проекта. Если найдены только адреса вне разрешённой области, возвращается ошибка.
-        Если по запросу не найдено ни одного подходящего адреса, возвращается успешный ответ с пустым списком.
+        Сервис может вернуть до 4 наиболее подходящих вариантов адреса. Если frontend передаёт query-параметр city, он трактуется как город пользователя и должен входить в список поддерживаемых городов проекта.
+        Если в строке запроса уже указан поддерживаемый город, он имеет приоритет над query-параметром city. Если указан неподдерживаемый город или найдены только адреса вне поддерживаемых зон проекта, возвращается ошибка.
+        Если по запросу не найдено ни одного подходящего адреса, возвращается ошибка 404.
 
         Примеры запросов:
         - "Самара проспект Ленина 1"
         - "Самара Ленина 1"
         - "Ленина 1"
       parameters:
-      - description: Строка поиска адреса
-        example: '"Самара проспект Ленина 1"'
+      - default: Ленина 1
+        description: Строка поиска адреса
+        example: Ленина 1
         in: query
         name: q
         required: true
+        type: string
+      - default: samara
+        description: Город-подсказка пользователя. Для Swagger по умолчанию подставляется
+          samara.
+        example: samara
+        in: query
+        name: city
         type: string
       produces:
       - application/json
       responses:
         "200":
-          description: Список найденных адресов или пустой список
+          description: До 4 наиболее подходящих адресов
           schema:
             $ref: '#/definitions/response.SearchAddressResponse'
         "400":
           description: Некорректный запрос, например пустой или слишком короткий q
           schema:
             $ref: '#/definitions/response.Error'
+        "404":
+          description: Подходящих адресов не найдено
+          schema:
+            $ref: '#/definitions/response.Error'
         "422":
-          description: Найдены только адреса вне зоны работы проекта
+          description: Указан неподдерживаемый город или найдены только адреса вне
+            зоны работы проекта
           schema:
             $ref: '#/definitions/response.Error'
         "500":

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -28,7 +29,7 @@ func Run(cfg *config.Config) { //nolint: gocyclo,cyclop,funlen,gocritic,nolintli
 	defer pg.Close()
 
 	categoryUC := category.New(persistent.NewCategoryRepo(pg))
-	geoRepo := persistent.NewGeoRepo(pg, cfg.Geo.CacheRadiusMeters, cfg.Geo.ZoneName)
+	geoRepo := persistent.NewGeoRepo(pg, cfg.Geo.CacheRadiusMeters)
 	nominatimRepo := webapi.NewNominatimRepo(webapi.Config{
 		BaseURL:        cfg.Nominatim.BaseURL,
 		UserAgent:      cfg.Nominatim.UserAgent,
@@ -39,7 +40,10 @@ func Run(cfg *config.Config) { //nolint: gocyclo,cyclop,funlen,gocritic,nolintli
 		ReverseZoom:    cfg.Nominatim.ReverseZoom,
 		Timeout:        cfg.Nominatim.Timeout,
 	})
-	geoUC := geoUseCase.New(geoRepo, nominatimRepo)
+	geoUC := geoUseCase.New(geoRepo, nominatimRepo, cfg.Geo.MaxCityAttempts)
+	if err = geoUC.ReloadCities(context.Background()); err != nil {
+		l.Fatal(fmt.Errorf("app - Run - geoUC.ReloadCities: %w", err))
+	}
 
 	httpServer := httpserver.New(l, httpserver.Port(cfg.HTTP.Port), httpserver.Prefork(cfg.HTTP.UsePreforkMode))
 	restapi.NewRouter(httpServer.App, cfg, categoryUC, geoUC, l)

@@ -276,9 +276,57 @@
                 }
             }
         },
+        "/maps/reload-cities": {
+            "post": {
+                "description": "Reloads in-memory supported cities from zones table. Admin only.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "maps"
+                ],
+                "summary": "Reload supported cities cache",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "default": "admin",
+                        "description": "User role (must be 'admin')",
+                        "name": "X-User-Role",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Reload successful",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Access denied",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/maps/reverse": {
             "get": {
-                "description": "Выполняет reverse geocoding: по координатам точки на карте возвращает человекочитаемый адрес.\nИспользуется, когда пользователь выбирает место на карте, а frontend должен показать адрес выбранной точки.\n\nЕсли точка находится вне разрешённой области работы проекта, возвращается ошибка.\nЕсли точка находится внутри разрешённой области, backend пытается определить адрес через локальный кеш и/или Nominatim/OpenStreetMap.",
+                "description": "Выполняет reverse geocoding: по координатам точки на карте возвращает человекочитаемый адрес.\nИспользуется, когда пользователь выбирает место на карте, а frontend должен показать адрес выбранной точки.\n\nСначала backend локально проверяет, попадает ли точка хотя бы в одну поддерживаемую зону проекта в PostGIS.\nЕсли точка не попадает ни в одну зону, возвращается ошибка. Если попадает, backend определяет адрес через локальный кеш и/или Nominatim/OpenStreetMap.",
                 "consumes": [
                     "application/json"
                 ],
@@ -320,6 +368,12 @@
                             "$ref": "#/definitions/response.Error"
                         }
                     },
+                    "404": {
+                        "description": "Адрес по координатам не найден",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
                     "422": {
                         "description": "Точка находится вне зоны работы проекта",
                         "schema": {
@@ -337,7 +391,7 @@
         },
         "/maps/search": {
             "get": {
-                "description": "Выполняет поиск адреса по текстовому запросу пользователя через Nominatim/OpenStreetMap. Используется, когда пользователь вводит адрес вручную в строке поиска на карте.\n\nПоиск ограничивается адресами, релевантными для зоны работы проекта. Если найдены только адреса вне разрешённой области, возвращается ошибка.\nЕсли по запросу не найдено ни одного подходящего адреса, возвращается успешный ответ с пустым списком.\n\nПримеры запросов:\n- \"Самара проспект Ленина 1\"\n- \"Самара Ленина 1\"\n- \"Ленина 1\"",
+                "description": "Выполняет поиск адреса по текстовому запросу пользователя через Nominatim/OpenStreetMap. Используется, когда пользователь вводит адрес вручную в строке поиска на карте.\n\nСервис может вернуть до 4 наиболее подходящих вариантов адреса. Если frontend передаёт query-параметр city, он трактуется как город пользователя и должен входить в список поддерживаемых городов проекта.\nЕсли в строке запроса уже указан поддерживаемый город, он имеет приоритет над query-параметром city. Если указан неподдерживаемый город или найдены только адреса вне поддерживаемых зон проекта, возвращается ошибка.\nЕсли по запросу не найдено ни одного подходящего адреса, возвращается ошибка 404.\n\nПримеры запросов:\n- \"Самара проспект Ленина 1\"\n- \"Самара Ленина 1\"\n- \"Ленина 1\"",
                 "consumes": [
                     "application/json"
                 ],
@@ -351,16 +405,25 @@
                 "parameters": [
                     {
                         "type": "string",
-                        "example": "\"Самара проспект Ленина 1\"",
+                        "default": "Ленина 1",
+                        "example": "Ленина 1",
                         "description": "Строка поиска адреса",
                         "name": "q",
                         "in": "query",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "samara",
+                        "example": "samara",
+                        "description": "Город-подсказка пользователя. Для Swagger по умолчанию подставляется samara.",
+                        "name": "city",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Список найденных адресов или пустой список",
+                        "description": "До 4 наиболее подходящих адресов",
                         "schema": {
                             "$ref": "#/definitions/response.SearchAddressResponse"
                         }
@@ -371,8 +434,14 @@
                             "$ref": "#/definitions/response.Error"
                         }
                     },
+                    "404": {
+                        "description": "Подходящих адресов не найдено",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
                     "422": {
-                        "description": "Найдены только адреса вне зоны работы проекта",
+                        "description": "Указан неподдерживаемый город или найдены только адреса вне зоны работы проекта",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }

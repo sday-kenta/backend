@@ -7,6 +7,7 @@ var (
 	ErrOutOfAllowedZone   = errors.New("project does not work in this area yet")
 	ErrInvalidCoordinates = errors.New("invalid coordinates")
 	ErrInvalidSearchQuery = errors.New("search query must contain at least 3 characters")
+	ErrZoneNotFound       = errors.New("zone not found")
 )
 
 // Address is the internal map/address entity used across controller, use case and repositories.
@@ -19,4 +20,10 @@ type Address struct {
 	Road        string  `json:"road,omitempty"`
 	HouseNumber string  `json:"house_number,omitempty"`
 	FullAddress string  `json:"full_address"`
+}
+
+// Zone describes a supported project area and its human-readable city label.
+type Zone struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"display_name"`
 }

@@ -1,6 +1,7 @@
-INSERT INTO zones (name, geom)
+INSERT INTO zones (name, display_name, geom)
 SELECT
     'samara',
+    'Самара',
     ST_SetSRID(
         ST_GeomFromGeoJSON(geom::text),
         4326

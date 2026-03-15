@@ -38,8 +38,8 @@ type (
 	}
 
 	Geo struct {
-		ZoneName          string `env:"GEO_ZONE_NAME" envDefault:"samara"`
-		CacheRadiusMeters int    `env:"GEO_CACHE_RADIUS_METERS" envDefault:"20"`
+		CacheRadiusMeters int `env:"GEO_CACHE_RADIUS_METERS" envDefault:"20"`
+		MaxCityAttempts   int `env:"GEO_MAX_CITY_ATTEMPTS" envDefault:"4"`
 	}
 
 	Nominatim struct {
@@ -50,7 +50,7 @@ type (
 		CountryCodes   string        `env:"NOMINATIM_COUNTRY_CODES" envDefault:"ru"`
 		SearchLimit    int           `env:"NOMINATIM_SEARCH_LIMIT" envDefault:"5"`
 		ReverseZoom    int           `env:"NOMINATIM_REVERSE_ZOOM" envDefault:"18"`
-		Timeout        time.Duration `env:"NOMINATIM_TIMEOUT" envDefault:"10s"`
+		Timeout        time.Duration `env:"NOMINATIM_TIMEOUT" envDefault:"5s"`
 	}
 
 	Swagger struct {
@@ -63,6 +63,5 @@ func NewConfig() (*Config, error) {
 	if err := env.Parse(cfg); err != nil {
 		return nil, fmt.Errorf("config error: %w", err)
 	}
-
 	return cfg, nil
 }

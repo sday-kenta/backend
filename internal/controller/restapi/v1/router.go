@@ -27,5 +27,6 @@ func NewGeoRoutes(apiV1Group fiber.Router, g usecase.Geo, l logger.Interface) {
 	{
 		mapsGroup.Get("/reverse", r.reverseGeocode)
 		mapsGroup.Get("/search", r.searchAddresses)
+		mapsGroup.Post("/reload-cities", r.requireAdmin, r.reloadCities)
 	}
 }
