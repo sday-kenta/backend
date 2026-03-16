@@ -5,8 +5,8 @@ package v1
 import (
 	"net/http"
 
-	"github.com/evrone/go-clean-template/internal/controller/restapi/v1/request"
-	"github.com/evrone/go-clean-template/internal/entity"
+	"github.com/sday-kenta/backend/internal/controller/restapi/v1/request"
+	"github.com/sday-kenta/backend/internal/entity"
 	"github.com/gofiber/fiber/v2"
 )
 

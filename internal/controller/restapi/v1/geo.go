@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/evrone/go-clean-template/internal/entity"
+	"github.com/sday-kenta/backend/internal/entity"
 	"github.com/gofiber/fiber/v2"
 )
 

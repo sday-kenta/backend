@@ -3,7 +3,7 @@ package usecase
 import (
 	"context"
 
-	"github.com/evrone/go-clean-template/internal/entity"
+	"github.com/sday-kenta/backend/internal/entity"
 )
 
 //go:generate mockgen -source=contracts.go -destination=./mocks_usecase_test.go -package=usecase_test
@@ -21,5 +21,14 @@ type (
 		ReverseGeocode(ctx context.Context, lat, lon float64) (entity.Address, error)
 		Search(ctx context.Context, query, city string) ([]entity.Address, error)
 		ReloadCities(ctx context.Context) error
+	}
+
+	User interface {
+		Create(context.Context, entity.User, string) (entity.User, error)
+		Delete(context.Context, int64) error
+		GetByID(context.Context, int64) (entity.User, error)
+		List(context.Context) ([]entity.User, error)
+		Update(context.Context, entity.User) (entity.User, error)
+		UpdateAvatar(context.Context, int64, string) error
 	}
 )

@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/Masterminds/squirrel"
-	"github.com/evrone/go-clean-template/internal/entity"
-	"github.com/evrone/go-clean-template/pkg/postgres"
+	"github.com/sday-kenta/backend/internal/entity"
+	"github.com/sday-kenta/backend/pkg/postgres"
 	"github.com/jackc/pgx/v5"
 )
 

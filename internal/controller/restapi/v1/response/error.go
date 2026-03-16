@@ -3,5 +3,5 @@
 package response
 
 type Error struct {
-	Error string `json:"error" example:"project does not work in this area yet"`
+	Error string `json:"error" example:"some informative error message"`
 }

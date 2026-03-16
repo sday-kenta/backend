@@ -7,9 +7,9 @@ import (
 	"math"
 	"strings"
 
-	"github.com/evrone/go-clean-template/internal/entity"
-	"github.com/evrone/go-clean-template/internal/repo"
-	"github.com/evrone/go-clean-template/internal/usecase/geo/addressnormalizer"
+	"github.com/sday-kenta/backend/internal/entity"
+	"github.com/sday-kenta/backend/internal/repo"
+	"github.com/sday-kenta/backend/internal/usecase/geo/addressnormalizer"
 )
 
 const (
@@ -284,10 +284,9 @@ func (uc *UseCase) resolveExplicitLocalityCity(query string) (string, bool) {
 		if len(words) == 0 {
 			return "", true
 		}
-		for size := minInt(len(words), 3); size >= 1; size-- {
-			candidate := strings.Join(words[:size], " ")
-			return candidate, true
-		}
+		size := minInt(len(words), 3)
+		candidate := strings.Join(words[:size], " ")
+		return candidate, true
 	}
 
 	return "", false

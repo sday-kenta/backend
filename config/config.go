@@ -13,9 +13,11 @@ type (
 		HTTP      HTTP
 		Log       Log
 		PG        PG
+		Metrics   Metrics
+		Swagger   Swagger
+		CDN       CDN
 		Geo       Geo
 		Nominatim Nominatim
-		Swagger   Swagger
 	}
 
 	App struct {
@@ -37,6 +39,18 @@ type (
 		URL     string `env:"PG_URL,required"`
 	}
 
+	Metrics struct {
+		Enabled bool `env:"METRICS_ENABLED" envDefault:"true"`
+	}
+
+	Swagger struct {
+		Enabled bool `env:"SWAGGER_ENABLED" envDefault:"false"`
+	}
+
+	CDN struct {
+		AvatarBaseURL string `env:"AVATAR_BASE_URL" envDefault:""`
+	}
+
 	Geo struct {
 		CacheRadiusMeters int `env:"GEO_CACHE_RADIUS_METERS" envDefault:"20"`
 		MaxCityAttempts   int `env:"GEO_MAX_CITY_ATTEMPTS" envDefault:"4"`
@@ -51,10 +65,6 @@ type (
 		SearchLimit    int           `env:"NOMINATIM_SEARCH_LIMIT" envDefault:"5"`
 		ReverseZoom    int           `env:"NOMINATIM_REVERSE_ZOOM" envDefault:"18"`
 		Timeout        time.Duration `env:"NOMINATIM_TIMEOUT" envDefault:"5s"`
-	}
-
-	Swagger struct {
-		Enabled bool `env:"SWAGGER_ENABLED" envDefault:"false"`
 	}
 )
 

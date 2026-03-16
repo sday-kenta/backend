@@ -1,2 +1,0 @@
-DROP TABLE IF EXISTS addresses;
-DROP EXTENSION IF EXISTS postgis;

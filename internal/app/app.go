@@ -7,18 +7,18 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/evrone/go-clean-template/config"
-	"github.com/evrone/go-clean-template/internal/controller/restapi"
-	"github.com/evrone/go-clean-template/internal/repo/persistent"
-	"github.com/evrone/go-clean-template/internal/repo/webapi"
-	"github.com/evrone/go-clean-template/internal/usecase/category"
-	geoUseCase "github.com/evrone/go-clean-template/internal/usecase/geo"
-	"github.com/evrone/go-clean-template/pkg/httpserver"
-	"github.com/evrone/go-clean-template/pkg/logger"
-	"github.com/evrone/go-clean-template/pkg/postgres"
+	"github.com/sday-kenta/backend/config"
+	"github.com/sday-kenta/backend/internal/controller/restapi"
+	"github.com/sday-kenta/backend/internal/repo/persistent"
+	"github.com/sday-kenta/backend/internal/repo/webapi"
+	"github.com/sday-kenta/backend/internal/usecase/category"
+	geoUseCase "github.com/sday-kenta/backend/internal/usecase/geo"
+	userUseCase "github.com/sday-kenta/backend/internal/usecase/user"
+	"github.com/sday-kenta/backend/pkg/httpserver"
+	"github.com/sday-kenta/backend/pkg/logger"
+	"github.com/sday-kenta/backend/pkg/postgres"
 )
 
-// Run creates objects via constructors.
 func Run(cfg *config.Config) { //nolint: gocyclo,cyclop,funlen,gocritic,nolintlint
 	l := logger.New(cfg.Log.Level)
 
@@ -45,8 +45,10 @@ func Run(cfg *config.Config) { //nolint: gocyclo,cyclop,funlen,gocritic,nolintli
 		l.Fatal(fmt.Errorf("app - Run - geoUC.ReloadCities: %w", err))
 	}
 
+	userUC := userUseCase.New(persistent.NewUserRepo(pg))
+
 	httpServer := httpserver.New(l, httpserver.Port(cfg.HTTP.Port), httpserver.Prefork(cfg.HTTP.UsePreforkMode))
-	restapi.NewRouter(httpServer.App, cfg, categoryUC, geoUC, l)
+	restapi.NewRouter(httpServer.App, cfg, categoryUC, geoUC, userUC, l)
 
 	httpServer.Start()
 
@@ -60,8 +62,7 @@ func Run(cfg *config.Config) { //nolint: gocyclo,cyclop,funlen,gocritic,nolintli
 		l.Error(fmt.Errorf("app - Run - httpServer.Notify: %w", err))
 	}
 
-	err = httpServer.Shutdown()
-	if err != nil {
+	if err = httpServer.Shutdown(); err != nil {
 		l.Error(fmt.Errorf("app - Run - httpServer.Shutdown: %w", err))
 	}
 }

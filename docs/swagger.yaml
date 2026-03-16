@@ -9,6 +9,43 @@ definitions:
       title:
         type: string
     type: object
+  entity.User:
+    properties:
+      apartment:
+        type: string
+      avatar_url:
+        description: AvatarURL stores identifier or URL of avatar image (e.g. S3 key).
+        type: string
+      city:
+        type: string
+      created_at:
+        type: string
+      email:
+        type: string
+      first_name:
+        type: string
+      house:
+        type: string
+      id:
+        type: integer
+      is_blocked:
+        type: boolean
+      last_name:
+        type: string
+      login:
+        type: string
+      middle_name:
+        type: string
+      phone:
+        type: string
+      role:
+        description: user, admin, premium
+        type: string
+      street:
+        type: string
+      updated_at:
+        type: string
+    type: object
   request.CreateCategory:
     properties:
       icon_url:
@@ -18,6 +55,63 @@ definitions:
     required:
     - title
     type: object
+  request.CreateUser:
+    properties:
+      apartment:
+        example: "10"
+        type: string
+      city:
+        example: Москва
+        type: string
+      email:
+        example: user@example.com
+        type: string
+      first_name:
+        example: Иван
+        type: string
+      house:
+        example: "1"
+        type: string
+      is_blocked:
+        example: false
+        type: boolean
+      last_name:
+        example: Иванов
+        type: string
+      login:
+        example: user123
+        type: string
+      middle_name:
+        example: Иванович
+        type: string
+      password:
+        example: qwerty123
+        type: string
+      phone:
+        example: "+79991234567"
+        type: string
+      role:
+        enum:
+        - user
+        - admin
+        - premium
+        example: user
+        type: string
+      street:
+        example: Тверская
+        type: string
+    required:
+    - city
+    - email
+    - first_name
+    - house
+    - last_name
+    - login
+    - password
+    - phone
+    - role
+    - street
+    type: object
   request.UpdateCategory:
     properties:
       icon_url:
@@ -25,10 +119,63 @@ definitions:
       title:
         type: string
     type: object
+  request.UpdateUser:
+    properties:
+      apartment:
+        example: "10"
+        type: string
+      city:
+        example: Москва
+        type: string
+      email:
+        example: user@example.com
+        type: string
+      first_name:
+        example: Иван
+        type: string
+      house:
+        example: "1"
+        type: string
+      is_blocked:
+        example: false
+        type: boolean
+      last_name:
+        example: Иванов
+        type: string
+      login:
+        example: user123
+        type: string
+      middle_name:
+        example: Иванович
+        type: string
+      phone:
+        example: "+79991234567"
+        type: string
+      role:
+        enum:
+        - user
+        - admin
+        - premium
+        example: user
+        type: string
+      street:
+        example: Тверская
+        type: string
+    required:
+    - city
+    - email
+    - first_name
+    - house
+    - last_name
+    - login
+    - phone
+    - role
+    - street
+    type: object
   response.Error:
     properties:
       error:
-        example: project does not work in this area yet
+        example: some informative error message
         type: string
     type: object
   response.GeoAddress:
@@ -74,8 +221,8 @@ definitions:
 host: localhost:8080
 info:
   contact: {}
-  description: API для мобильного приложения и админ-панели проекта "ЭкоВыбор"
-  title: Сознательный гражданин API
+  description: Combined users and maps service API
+  title: Backend API
   version: "1.0"
 paths:
   /categories:
@@ -397,4 +544,181 @@ paths:
       summary: Поиск адреса по строке
       tags:
       - maps
+  /users:
+    get:
+      consumes:
+      - application/json
+      description: Get all users
+      operationId: list-users
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/entity.User'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: List users
+      tags:
+      - users
+    post:
+      consumes:
+      - application/json
+      description: Create a new user
+      operationId: create-user
+      parameters:
+      - description: User data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.CreateUser'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/entity.User'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Create user
+      tags:
+      - users
+  /users/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete user by ID
+      operationId: delete-user
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Delete user
+      tags:
+      - users
+    get:
+      consumes:
+      - application/json
+      description: Get user by ID
+      operationId: get-user
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/entity.User'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Get user
+      tags:
+      - users
+    put:
+      consumes:
+      - application/json
+      description: Update user fields (without password)
+      operationId: update-user
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: User data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.UpdateUser'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/entity.User'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Update user
+      tags:
+      - users
+  /users/{id}/avatar:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload avatar image (JPEG/PNG) for a user
+      operationId: upload-avatar
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Avatar image (JPEG/PNG), max 2MB
+        in: formData
+        name: avatar
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Upload user avatar
+      tags:
+      - users
 swagger: "2.0"
