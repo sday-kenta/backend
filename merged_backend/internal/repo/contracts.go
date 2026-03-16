@@ -1,0 +1,41 @@
+package repo
+
+import (
+	"context"
+
+	"github.com/sday-kenta/backend/internal/entity"
+)
+
+//go:generate mockgen -source=contracts.go -destination=../usecase/mocks_repo_test.go -package=usecase_test
+
+type (
+	CategoryRepo interface {
+		GetAll(ctx context.Context) ([]entity.Category, error)
+		GetByID(ctx context.Context, id int) (entity.Category, error)
+		Create(ctx context.Context, input entity.CreateCategoryInput) (int, error)
+		Update(ctx context.Context, id int, input entity.UpdateCategoryInput) error
+		Delete(ctx context.Context, id int) error
+	}
+
+	GeoRepo interface {
+		GetAddressByCoords(ctx context.Context, lat, lon float64) (entity.Address, error)
+		SaveAddress(ctx context.Context, addr entity.Address) error
+		IsPointInZone(ctx context.Context, lat, lon float64, zoneName string) (bool, error)
+		FindContainingZone(ctx context.Context, lat, lon float64) (entity.Zone, error)
+		GetZones(ctx context.Context) ([]entity.Zone, error)
+	}
+
+	GeoWebAPI interface {
+		Reverse(ctx context.Context, lat, lon float64) (entity.Address, error)
+		Search(ctx context.Context, query, city string) ([]entity.Address, error)
+	}
+
+	UserRepo interface {
+		Create(ctx context.Context, user *entity.User) error
+		Delete(ctx context.Context, id int64) error
+		GetByID(ctx context.Context, id int64) (entity.User, error)
+		List(ctx context.Context) ([]entity.User, error)
+		Update(ctx context.Context, user *entity.User) error
+		UpdateAvatar(ctx context.Context, id int64, avatarURL string) error
+	}
+)

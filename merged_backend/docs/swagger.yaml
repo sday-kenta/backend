@@ -1,0 +1,724 @@
+basePath: /v1
+definitions:
+  entity.Category:
+    properties:
+      icon_url:
+        type: string
+      id:
+        type: integer
+      title:
+        type: string
+    type: object
+  entity.User:
+    properties:
+      apartment:
+        type: string
+      avatar_url:
+        description: AvatarURL stores identifier or URL of avatar image (e.g. S3 key).
+        type: string
+      city:
+        type: string
+      created_at:
+        type: string
+      email:
+        type: string
+      first_name:
+        type: string
+      house:
+        type: string
+      id:
+        type: integer
+      is_blocked:
+        type: boolean
+      last_name:
+        type: string
+      login:
+        type: string
+      middle_name:
+        type: string
+      phone:
+        type: string
+      role:
+        description: user, admin, premium
+        type: string
+      street:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  request.CreateCategory:
+    properties:
+      icon_url:
+        type: string
+      title:
+        type: string
+    required:
+    - title
+    type: object
+  request.CreateUser:
+    properties:
+      apartment:
+        example: "10"
+        type: string
+      city:
+        example: Москва
+        type: string
+      email:
+        example: user@example.com
+        type: string
+      first_name:
+        example: Иван
+        type: string
+      house:
+        example: "1"
+        type: string
+      is_blocked:
+        example: false
+        type: boolean
+      last_name:
+        example: Иванов
+        type: string
+      login:
+        example: user123
+        type: string
+      middle_name:
+        example: Иванович
+        type: string
+      password:
+        example: qwerty123
+        type: string
+      phone:
+        example: "+79991234567"
+        type: string
+      role:
+        enum:
+        - user
+        - admin
+        - premium
+        example: user
+        type: string
+      street:
+        example: Тверская
+        type: string
+    required:
+    - city
+    - email
+    - first_name
+    - house
+    - last_name
+    - login
+    - password
+    - phone
+    - role
+    - street
+    type: object
+  request.UpdateCategory:
+    properties:
+      icon_url:
+        type: string
+      title:
+        type: string
+    type: object
+  request.UpdateUser:
+    properties:
+      apartment:
+        example: "10"
+        type: string
+      city:
+        example: Москва
+        type: string
+      email:
+        example: user@example.com
+        type: string
+      first_name:
+        example: Иван
+        type: string
+      house:
+        example: "1"
+        type: string
+      is_blocked:
+        example: false
+        type: boolean
+      last_name:
+        example: Иванов
+        type: string
+      login:
+        example: user123
+        type: string
+      middle_name:
+        example: Иванович
+        type: string
+      phone:
+        example: "+79991234567"
+        type: string
+      role:
+        enum:
+        - user
+        - admin
+        - premium
+        example: user
+        type: string
+      street:
+        example: Тверская
+        type: string
+    required:
+    - city
+    - email
+    - first_name
+    - house
+    - last_name
+    - login
+    - phone
+    - role
+    - street
+    type: object
+  response.Error:
+    properties:
+      error:
+        example: some informative error message
+        type: string
+    type: object
+  response.GeoAddress:
+    properties:
+      city:
+        example: Самара
+        type: string
+      full_address:
+        example: 1, проспект Ленина, Октябрьский район, Самара, городской округ Самара,
+          Самарская область, Приволжский федеральный округ, 443110, Россия
+        type: string
+      house_number:
+        example: "1"
+        type: string
+      lat:
+        example: 53.2051714
+        type: number
+      lon:
+        example: 50.1334676
+        type: number
+      road:
+        example: проспект Ленина
+        type: string
+    type: object
+  response.ReverseGeocodeResponse:
+    properties:
+      data:
+        $ref: '#/definitions/response.GeoAddress'
+      status:
+        example: success
+        type: string
+    type: object
+  response.SearchAddressResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/response.GeoAddress'
+        type: array
+      status:
+        example: success
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: Combined users and maps service API
+  title: Backend API
+  version: "1.0"
+paths:
+  /categories:
+    get:
+      consumes:
+      - application/json
+      description: Returns a list of all active categories (rubrics)
+      operationId: get-categories
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of categories
+          schema:
+            items:
+              $ref: '#/definitions/entity.Category'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Get all categories
+      tags:
+      - categories
+    post:
+      consumes:
+      - application/json
+      description: Creates a new category (Admin only)
+      operationId: create-category
+      parameters:
+      - default: admin
+        description: User role (must be 'admin')
+        in: header
+        name: X-User-Role
+        required: true
+        type: string
+      - description: Data for new category
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.CreateCategory'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created category
+          schema:
+            $ref: '#/definitions/entity.Category'
+        "400":
+          description: Invalid request body
+          schema:
+            $ref: '#/definitions/response.Error'
+        "403":
+          description: Access denied
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Create a new category
+      tags:
+      - categories
+  /categories/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Soft-deletes a category by ID (Admin only)
+      operationId: delete-category
+      parameters:
+      - description: Category ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - default: admin
+        description: User role (must be 'admin')
+        in: header
+        name: X-User-Role
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Success message
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid ID format
+          schema:
+            $ref: '#/definitions/response.Error'
+        "403":
+          description: Access denied
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Delete a category
+      tags:
+      - categories
+    get:
+      consumes:
+      - application/json
+      description: Returns a single active category by its ID
+      operationId: get-category-by-id
+      parameters:
+      - description: Category ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Single category
+          schema:
+            $ref: '#/definitions/entity.Category'
+        "400":
+          description: Invalid ID format
+          schema:
+            $ref: '#/definitions/response.Error'
+        "404":
+          description: Category not found
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Get category by ID
+      tags:
+      - categories
+    patch:
+      consumes:
+      - application/json
+      description: Partially updates a category by ID (Admin only)
+      operationId: update-category
+      parameters:
+      - description: Category ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - default: admin
+        description: User role (must be 'admin')
+        in: header
+        name: X-User-Role
+        required: true
+        type: string
+      - description: Data to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.UpdateCategory'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Updated category
+          schema:
+            $ref: '#/definitions/entity.Category'
+        "400":
+          description: Invalid ID or request body
+          schema:
+            $ref: '#/definitions/response.Error'
+        "403":
+          description: Access denied
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Update a category
+      tags:
+      - categories
+  /maps/reload-cities:
+    post:
+      consumes:
+      - application/json
+      description: Reloads in-memory supported cities from zones table. Admin only.
+      parameters:
+      - default: admin
+        description: User role (must be 'admin')
+        in: header
+        name: X-User-Role
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Reload successful
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Access denied
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Reload supported cities cache
+      tags:
+      - maps
+  /maps/reverse:
+    get:
+      consumes:
+      - application/json
+      description: |-
+        Выполняет reverse geocoding: по координатам точки на карте возвращает человекочитаемый адрес.
+        Используется, когда пользователь выбирает место на карте, а frontend должен показать адрес выбранной точки.
+
+        Сначала backend локально проверяет, попадает ли точка хотя бы в одну поддерживаемую зону проекта в PostGIS.
+        Если точка не попадает ни в одну зону, возвращается ошибка. Если попадает, backend определяет адрес через локальный кеш и/или Nominatim/OpenStreetMap.
+      parameters:
+      - description: Широта точки
+        example: 53.2051714
+        in: query
+        name: lat
+        required: true
+        type: number
+      - description: Долгота точки
+        example: 50.1334676
+        in: query
+        name: lon
+        required: true
+        type: number
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Найденный адрес по координатам
+          schema:
+            $ref: '#/definitions/response.ReverseGeocodeResponse'
+        "400":
+          description: Некорректные координаты или отсутствующие query-параметры
+          schema:
+            $ref: '#/definitions/response.Error'
+        "404":
+          description: Адрес по координатам не найден
+          schema:
+            $ref: '#/definitions/response.Error'
+        "422":
+          description: Точка находится вне зоны работы проекта
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Внутренняя ошибка сервиса карт
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Получение адреса по координатам
+      tags:
+      - maps
+  /maps/search:
+    get:
+      consumes:
+      - application/json
+      description: |-
+        Выполняет поиск адреса по текстовому запросу пользователя через Nominatim/OpenStreetMap. Используется, когда пользователь вводит адрес вручную в строке поиска на карте.
+
+        Сервис может вернуть до 4 наиболее подходящих вариантов адреса. Если frontend передаёт query-параметр city, он трактуется как город пользователя и должен входить в список поддерживаемых городов проекта.
+        Если в строке запроса уже указан поддерживаемый город, он имеет приоритет над query-параметром city. Если указан неподдерживаемый город или найдены только адреса вне поддерживаемых зон проекта, возвращается ошибка.
+        Если по запросу не найдено ни одного подходящего адреса, возвращается ошибка 404.
+
+        Примеры запросов:
+        - "Самара проспект Ленина 1"
+        - "Самара Ленина 1"
+        - "Ленина 1"
+      parameters:
+      - default: Ленина 1
+        description: Строка поиска адреса
+        example: Ленина 1
+        in: query
+        name: q
+        required: true
+        type: string
+      - default: samara
+        description: Город-подсказка пользователя. Для Swagger по умолчанию подставляется
+          samara.
+        example: samara
+        in: query
+        name: city
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: До 4 наиболее подходящих адресов
+          schema:
+            $ref: '#/definitions/response.SearchAddressResponse'
+        "400":
+          description: Некорректный запрос, например пустой или слишком короткий q
+          schema:
+            $ref: '#/definitions/response.Error'
+        "404":
+          description: Подходящих адресов не найдено
+          schema:
+            $ref: '#/definitions/response.Error'
+        "422":
+          description: Указан неподдерживаемый город или найдены только адреса вне
+            зоны работы проекта
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Внутренняя ошибка сервиса карт
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Поиск адреса по строке
+      tags:
+      - maps
+  /users:
+    get:
+      consumes:
+      - application/json
+      description: Get all users
+      operationId: list-users
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/entity.User'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: List users
+      tags:
+      - users
+    post:
+      consumes:
+      - application/json
+      description: Create a new user
+      operationId: create-user
+      parameters:
+      - description: User data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.CreateUser'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/entity.User'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Create user
+      tags:
+      - users
+  /users/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete user by ID
+      operationId: delete-user
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Delete user
+      tags:
+      - users
+    get:
+      consumes:
+      - application/json
+      description: Get user by ID
+      operationId: get-user
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/entity.User'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Get user
+      tags:
+      - users
+    put:
+      consumes:
+      - application/json
+      description: Update user fields (without password)
+      operationId: update-user
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: User data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.UpdateUser'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/entity.User'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Update user
+      tags:
+      - users
+  /users/{id}/avatar:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload avatar image (JPEG/PNG) for a user
+      operationId: upload-avatar
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Avatar image (JPEG/PNG), max 2MB
+        in: formData
+        name: avatar
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Upload user avatar
+      tags:
+      - users
+swagger: "2.0"
