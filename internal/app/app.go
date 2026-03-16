@@ -7,15 +7,15 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/evrone/go-clean-template/config"
-	"github.com/evrone/go-clean-template/internal/controller/restapi"
-	"github.com/evrone/go-clean-template/internal/repo/persistent"
-	"github.com/evrone/go-clean-template/internal/repo/webapi"
-	"github.com/evrone/go-clean-template/internal/usecase/category"
-	geoUseCase "github.com/evrone/go-clean-template/internal/usecase/geo"
-	"github.com/evrone/go-clean-template/pkg/httpserver"
-	"github.com/evrone/go-clean-template/pkg/logger"
-	"github.com/evrone/go-clean-template/pkg/postgres"
+	"github.com/sday-kenta/backend/config"
+	"github.com/sday-kenta/backend/internal/controller/restapi"
+	"github.com/sday-kenta/backend/internal/repo/persistent"
+	"github.com/sday-kenta/backend/internal/repo/webapi"
+	"github.com/sday-kenta/backend/internal/usecase/category"
+	geoUseCase "github.com/sday-kenta/backend/internal/usecase/geo"
+	"github.com/sday-kenta/backend/pkg/httpserver"
+	"github.com/sday-kenta/backend/pkg/logger"
+	"github.com/sday-kenta/backend/pkg/postgres"
 )
 
 // Run creates objects via constructors.

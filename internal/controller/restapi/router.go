@@ -3,12 +3,12 @@ package restapi
 import (
 	"net/http"
 
-	"github.com/evrone/go-clean-template/config"
-	_ "github.com/evrone/go-clean-template/docs"
-	"github.com/evrone/go-clean-template/internal/controller/restapi/middleware"
-	v1 "github.com/evrone/go-clean-template/internal/controller/restapi/v1"
-	"github.com/evrone/go-clean-template/internal/usecase"
-	"github.com/evrone/go-clean-template/pkg/logger"
+	"github.com/sday-kenta/backend/config"
+	_ "github.com/sday-kenta/backend/docs"
+	"github.com/sday-kenta/backend/internal/controller/restapi/middleware"
+	v1 "github.com/sday-kenta/backend/internal/controller/restapi/v1"
+	"github.com/sday-kenta/backend/internal/usecase"
+	"github.com/sday-kenta/backend/pkg/logger"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/swagger"
 )

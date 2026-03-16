@@ -10,8 +10,8 @@ package main
 import (
 	"log"
 
-	"github.com/evrone/go-clean-template/config"
-	"github.com/evrone/go-clean-template/internal/app"
+	"github.com/sday-kenta/backend/config"
+	"github.com/sday-kenta/backend/internal/app"
 )
 
 func main() {

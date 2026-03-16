@@ -3,7 +3,7 @@ FROM golang:1.25-alpine3.21 AS modules
 COPY go.mod go.sum /modules/
 WORKDIR /modules
 ENV GOPROXY=https://proxy.golang.org,direct
-RUN go mod download
+RUN go mod download -x
 
 FROM golang:1.25-alpine3.21 AS builder
 

@@ -1,8 +1,8 @@
 package v1
 
 import (
-	"github.com/evrone/go-clean-template/internal/usecase"
-	"github.com/evrone/go-clean-template/pkg/logger"
+	"github.com/sday-kenta/backend/internal/usecase"
+	"github.com/sday-kenta/backend/pkg/logger"
 	"github.com/go-playground/validator/v10"
 )
 

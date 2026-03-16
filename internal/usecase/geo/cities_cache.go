@@ -5,7 +5,7 @@ import (
 	"sync"
 	"unicode"
 
-	"github.com/evrone/go-clean-template/internal/entity"
+	"github.com/sday-kenta/backend/internal/entity"
 )
 
 // CitiesCache stores supported zones and their display names in memory.

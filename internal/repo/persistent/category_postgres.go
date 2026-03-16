@@ -6,8 +6,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/evrone/go-clean-template/internal/entity"
-	"github.com/evrone/go-clean-template/pkg/postgres"
+	"github.com/sday-kenta/backend/internal/entity"
+	"github.com/sday-kenta/backend/pkg/postgres"
 )
 
 // CategoryRepo -.

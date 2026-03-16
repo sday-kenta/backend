@@ -4,9 +4,9 @@
 
 Шаблон Чистой Архитектуры для приложений на Golang
 
-[![Release](https://img.shields.io/github/v/release/evrone/go-clean-template.svg)](https://github.com/evrone/go-clean-template/releases/)
-[![License](https://img.shields.io/badge/License-MIT-success)](https://github.com/evrone/go-clean-template/blob/master/LICENSE)
-[![Go Report Card](https://goreportcard.com/badge/github.com/evrone/go-clean-template)](https://goreportcard.com/report/github.com/evrone/go-clean-template)
+[![Release](https://img.shields.io/github/v/release/evrone/go-clean-template.svg)](https://github.com/sday-kenta/backend/releases/)
+[![License](https://img.shields.io/badge/License-MIT-success)](https://github.com/sday-kenta/backend/blob/master/LICENSE)
+[![Go Report Card](https://goreportcard.com/badge/github.com/sday-kenta/backend)](https://goreportcard.com/report/github.com/sday-kenta/backend)
 [![codecov](https://codecov.io/gh/evrone/go-clean-template/branch/master/graph/badge.svg?token=XE3E0X3EVQ)](https://codecov.io/gh/evrone/go-clean-template)
 
 [![Web Framework](https://img.shields.io/badge/Fiber-Web%20Framework-blue)](https://github.com/gofiber/fiber)

@@ -15,7 +15,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/evrone/go-clean-template/internal/entity"
+	"github.com/sday-kenta/backend/internal/entity"
 )
 
 const (
@@ -330,11 +330,17 @@ func (r *NominatimRepo) doJSON(ctx context.Context, method, endpoint string, que
 	if err != nil {
 		return fmt.Errorf("NominatimRepo - httpClient.Do: %w", err)
 	}
-	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
+	closeErr := resp.Body.Close()
 	if err != nil {
+		if closeErr != nil {
+			return fmt.Errorf("NominatimRepo - io.ReadAll: %w; close response body: %v", err, closeErr)
+		}
 		return fmt.Errorf("NominatimRepo - io.ReadAll: %w", err)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("NominatimRepo - close response body: %w", closeErr)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -541,7 +547,9 @@ func matchesSearchQuery(parsed parsedAddressQuery, address entity.Address) bool 
 	wantedHouse := normalizeHouseNumber(parsed.HouseNumber)
 	wantedStreetTokens := significantTokens(parsed.Street)
 
-	if wantedCity != "" && !(strings.Contains(cityNorm, wantedCity) || strings.Contains(fullNorm, wantedCity)) {
+	if wantedCity != "" &&
+		!strings.Contains(cityNorm, wantedCity) &&
+		!strings.Contains(fullNorm, wantedCity) {
 		return false
 	}
 
