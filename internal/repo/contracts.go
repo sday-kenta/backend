@@ -34,6 +34,7 @@ type (
 		Create(ctx context.Context, user *entity.User) error
 		Delete(ctx context.Context, id int64) error
 		GetByID(ctx context.Context, id int64) (entity.User, error)
+		GetByIdentifier(ctx context.Context, identifier string) (entity.User, error)
 		List(ctx context.Context) ([]entity.User, error)
 		Update(ctx context.Context, user *entity.User) error
 		UpdateAvatar(ctx context.Context, id int64, avatarURL string) error

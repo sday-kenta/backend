@@ -27,6 +27,7 @@ type (
 		Create(context.Context, entity.User, string) (entity.User, error)
 		Delete(context.Context, int64) error
 		GetByID(context.Context, int64) (entity.User, error)
+		Authenticate(context.Context, string, string) (entity.User, error)
 		List(context.Context) ([]entity.User, error)
 		Update(context.Context, entity.User) (entity.User, error)
 		UpdateAvatar(context.Context, int64, string) error

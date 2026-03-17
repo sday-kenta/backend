@@ -52,5 +52,6 @@ func NewRouter(app *fiber.App, cfg *config.Config, c usecase.Category, g usecase
 		v1.NewCategoryRoutes(apiV1Group, c, l)
 		v1.NewGeoRoutes(apiV1Group, g, l)
 		v1.NewUserRoutes(apiV1Group, u, l, cfg.CDN.AvatarBaseURL)
+		v1.NewAuthRoutes(apiV1Group, u, l)
 	}
 }

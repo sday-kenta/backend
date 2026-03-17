@@ -8,4 +8,6 @@ var (
 	ErrDuplicateEmail  = errors.New("email already exists")
 	ErrDuplicatePhone  = errors.New("phone already exists")
 	ErrInvalidRole     = errors.New("invalid role")
+	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrUserBlocked        = errors.New("user is blocked")
 )

@@ -196,6 +196,79 @@ func (r *UserRepo) GetByID(ctx context.Context, id int64) (entity.User, error) {
 	return u, nil
 }
 
+// GetByIdentifier finds a user by login OR email OR phone.
+// For login/email comparison is case-insensitive, phone is exact match.
+func (r *UserRepo) GetByIdentifier(ctx context.Context, identifier string) (entity.User, error) {
+	const q = `
+SELECT
+  u.id,
+  u.login,
+  u.email,
+  u.password_hash,
+  u.last_name,
+  u.first_name,
+  u.middle_name,
+  u.phone,
+  u.city,
+  u.street,
+  u.house,
+  u.apartment,
+  u.avatar_url,
+  u.is_blocked,
+  r.name as role,
+  u.created_at,
+  u.updated_at
+FROM users u
+JOIN roles r ON u.role_id = r.id
+WHERE lower(u.login) = lower($1)
+   OR lower(u.email) = lower($1)
+   OR u.phone = $1
+LIMIT 1`
+
+	row := r.Pool.QueryRow(ctx, q, identifier)
+
+	var (
+		u          entity.User
+		middleName sql.NullString
+		apartment  sql.NullString
+		avatarURL  sql.NullString
+	)
+
+	if err := row.Scan(
+		&u.ID,
+		&u.Login,
+		&u.Email,
+		&u.PasswordHash,
+		&u.LastName,
+		&u.FirstName,
+		&middleName,
+		&u.Phone,
+		&u.City,
+		&u.Street,
+		&u.House,
+		&apartment,
+		&avatarURL,
+		&u.IsBlocked,
+		&u.Role,
+		&u.CreatedAt,
+		&u.UpdatedAt,
+	); err != nil {
+		return entity.User{}, mapPgError(err)
+	}
+
+	if middleName.Valid {
+		u.MiddleName = middleName.String
+	}
+	if apartment.Valid {
+		u.Apartment = apartment.String
+	}
+	if avatarURL.Valid {
+		u.AvatarURL = avatarURL.String
+	}
+
+	return u, nil
+}
+
 // List returns all users.
 func (r *UserRepo) List(ctx context.Context) ([]entity.User, error) {
 	query, _, err := r.Builder.

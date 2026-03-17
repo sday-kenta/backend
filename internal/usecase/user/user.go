@@ -6,6 +6,7 @@ import (
 
 	"github.com/sday-kenta/backend/internal/entity"
 	"github.com/sday-kenta/backend/internal/repo"
+	"github.com/sday-kenta/backend/internal/usererr"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -54,6 +55,27 @@ func (uc *UseCase) GetByID(ctx context.Context, id int64) (entity.User, error) {
 	u, err := uc.repo.GetByID(ctx, id)
 	if err != nil {
 		return entity.User{}, err
+	}
+
+	return u, nil
+}
+
+// Authenticate checks identifier (login/email/phone) and password against DB.
+func (uc *UseCase) Authenticate(ctx context.Context, identifier, password string) (entity.User, error) {
+	u, err := uc.repo.GetByIdentifier(ctx, identifier)
+	if err != nil {
+		if err == usererr.ErrNotFound {
+			return entity.User{}, usererr.ErrInvalidCredentials
+		}
+		return entity.User{}, err
+	}
+
+	if u.IsBlocked {
+		return entity.User{}, usererr.ErrUserBlocked
+	}
+
+	if err = bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)); err != nil {
+		return entity.User{}, usererr.ErrInvalidCredentials
 	}
 
 	return u, nil
