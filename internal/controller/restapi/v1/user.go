@@ -415,6 +415,75 @@ func (r *UsersV1) sendPasswordResetCode(ctx *fiber.Ctx) error {
 	return ctx.SendStatus(http.StatusNoContent)
 }
 
+// @Summary     Send email verification code
+// @Description Sends a verification code to email for registration or email change
+// @ID          send-email-code
+// @Tags  	    users
+// @Accept      json
+// @Produce     json
+// @Param       request body request.SendEmailVerificationCode true "Email and purpose"
+// @Success     204
+// @Failure     400 {object} response.Error
+// @Failure     500 {object} response.Error
+// @Router      /users/email-code/send [post]
+func (r *UsersV1) sendEmailVerificationCode(ctx *fiber.Ctx) error {
+	var body request.SendEmailVerificationCode
+
+	if err := ctx.BodyParser(&body); err != nil {
+		r.l.Error(err, "restapi - v1 - sendEmailVerificationCode")
+		return errorResponse(ctx, http.StatusBadRequest, "invalid request body")
+	}
+
+	if err := r.v.Struct(body); err != nil {
+		r.l.Error(err, "restapi - v1 - sendEmailVerificationCode")
+		return errorResponse(ctx, http.StatusBadRequest, formatValidationError(err))
+	}
+
+	if err := r.u.SendEmailVerificationCode(ctx.UserContext(), body.Email, body.Purpose); err != nil {
+		r.l.Error(err, "restapi - v1 - sendEmailVerificationCode")
+		return userErrorResponse(ctx, err)
+	}
+
+	return ctx.SendStatus(http.StatusNoContent)
+}
+
+// @Summary     Verify email verification code
+// @Description Verifies a code sent to email (one-time, with expiration)
+// @ID          verify-email-code
+// @Tags  	    users
+// @Accept      json
+// @Produce     json
+// @Param       request body request.VerifyEmailVerificationCode true "Email, purpose and code"
+// @Success     204
+// @Failure     400 {object} response.Error
+// @Failure     500 {object} response.Error
+// @Router      /users/email-code/verify [post]
+func (r *UsersV1) verifyEmailVerificationCode(ctx *fiber.Ctx) error {
+	var body request.VerifyEmailVerificationCode
+
+	if err := ctx.BodyParser(&body); err != nil {
+		r.l.Error(err, "restapi - v1 - verifyEmailVerificationCode")
+		return errorResponse(ctx, http.StatusBadRequest, "invalid request body")
+	}
+
+	if err := r.v.Struct(body); err != nil {
+		r.l.Error(err, "restapi - v1 - verifyEmailVerificationCode")
+		return errorResponse(ctx, http.StatusBadRequest, formatValidationError(err))
+	}
+
+	if err := r.u.VerifyEmailVerificationCode(ctx.UserContext(), body.Email, body.Purpose, body.Code); err != nil {
+		r.l.Error(err, "restapi - v1 - verifyEmailVerificationCode")
+		switch {
+		case errors.Is(err, usererr.ErrInvalidCode), errors.Is(err, usererr.ErrCodeExpired):
+			return errorResponse(ctx, http.StatusBadRequest, err.Error())
+		default:
+			return userErrorResponse(ctx, err)
+		}
+	}
+
+	return ctx.SendStatus(http.StatusNoContent)
+}
+
 // @Summary     Login
 // @Description Login by login/email/phone + password
 // @ID          users-login

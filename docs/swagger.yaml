@@ -124,6 +124,21 @@ definitions:
     - identifier
     - password
     type: object
+  request.SendEmailVerificationCode:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      purpose:
+        enum:
+        - register
+        - change_email
+        example: register
+        type: string
+    required:
+    - email
+    - purpose
+    type: object
   request.SendPasswordResetCode:
     properties:
       email:
@@ -191,6 +206,25 @@ definitions:
     - phone
     - role
     - street
+    type: object
+  request.VerifyEmailVerificationCode:
+    properties:
+      code:
+        example: "123456"
+        type: string
+      email:
+        example: user@example.com
+        type: string
+      purpose:
+        enum:
+        - register
+        - change_email
+        example: register
+        type: string
+    required:
+    - code
+    - email
+    - purpose
     type: object
   response.Error:
     properties:
@@ -778,6 +812,64 @@ paths:
           schema:
             $ref: '#/definitions/response.Error'
       summary: Upload user avatar
+      tags:
+      - users
+  /users/email-code/send:
+    post:
+      consumes:
+      - application/json
+      description: Sends a verification code to email for registration or email change
+      operationId: send-email-code
+      parameters:
+      - description: Email and purpose
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.SendEmailVerificationCode'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Send email verification code
+      tags:
+      - users
+  /users/email-code/verify:
+    post:
+      consumes:
+      - application/json
+      description: Verifies a code sent to email (one-time, with expiration)
+      operationId: verify-email-code
+      parameters:
+      - description: Email, purpose and code
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.VerifyEmailVerificationCode'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Verify email verification code
       tags:
       - users
   /users/login:

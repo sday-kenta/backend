@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/sday-kenta/backend/internal/entity"
@@ -267,6 +268,107 @@ LIMIT 1`
 	}
 
 	return u, nil
+}
+
+func (r *UserRepo) CreateEmailVerificationCode(
+	ctx context.Context,
+	email, purpose, code string,
+	expiresAtUnix int64,
+) error {
+	expiresAt := time.Unix(expiresAtUnix, 0).UTC()
+
+	tx, err := r.Pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("UserRepo - CreateEmailVerificationCode - Begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Keep a single active code per (email,purpose).
+	if _, err = tx.Exec(
+		ctx,
+		"DELETE FROM email_verification_codes WHERE email = $1 AND purpose = $2 AND consumed_at IS NULL",
+		email,
+		purpose,
+	); err != nil {
+		return fmt.Errorf("UserRepo - CreateEmailVerificationCode - delete active: %w", err)
+	}
+
+	if _, err = tx.Exec(
+		ctx,
+		`INSERT INTO email_verification_codes (email, purpose, code, expires_at)
+		 VALUES ($1, $2, $3, $4)`,
+		email,
+		purpose,
+		code,
+		expiresAt,
+	); err != nil {
+		return fmt.Errorf("UserRepo - CreateEmailVerificationCode - insert: %w", err)
+	}
+
+	if err = tx.Commit(ctx); err != nil {
+		return fmt.Errorf("UserRepo - CreateEmailVerificationCode - Commit: %w", err)
+	}
+
+	return nil
+}
+
+func (r *UserRepo) ConsumeEmailVerificationCode(
+	ctx context.Context,
+	email, purpose, code string,
+	nowUnix int64,
+) error {
+	now := time.Unix(nowUnix, 0).UTC()
+
+	tx, err := r.Pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("UserRepo - ConsumeEmailVerificationCode - Begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var (
+		dbCode    string
+		expiresAt time.Time
+	)
+
+	err = tx.QueryRow(
+		ctx,
+		`SELECT code, expires_at
+		 FROM email_verification_codes
+		 WHERE email = $1 AND purpose = $2 AND consumed_at IS NULL
+		 ORDER BY created_at DESC
+		 LIMIT 1
+		 FOR UPDATE`,
+		email,
+		purpose,
+	).Scan(&dbCode, &expiresAt)
+	if err != nil {
+		return mapPgError(err)
+	}
+
+	if now.After(expiresAt) {
+		return usererr.ErrCodeExpired
+	}
+	if dbCode != code {
+		return usererr.ErrInvalidCode
+	}
+
+	if _, err = tx.Exec(
+		ctx,
+		`UPDATE email_verification_codes
+		 SET consumed_at = $1
+		 WHERE email = $2 AND purpose = $3 AND consumed_at IS NULL`,
+		now,
+		email,
+		purpose,
+	); err != nil {
+		return fmt.Errorf("UserRepo - ConsumeEmailVerificationCode - update: %w", err)
+	}
+
+	if err = tx.Commit(ctx); err != nil {
+		return fmt.Errorf("UserRepo - ConsumeEmailVerificationCode - Commit: %w", err)
+	}
+
+	return nil
 }
 
 // List returns all users.

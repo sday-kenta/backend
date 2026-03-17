@@ -598,6 +598,94 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/email-code/send": {
+            "post": {
+                "description": "Sends a verification code to email for registration or email change",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Send email verification code",
+                "operationId": "send-email-code",
+                "parameters": [
+                    {
+                        "description": "Email and purpose",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.SendEmailVerificationCode"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/email-code/verify": {
+            "post": {
+                "description": "Verifies a code sent to email (one-time, with expiration)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Verify email verification code",
+                "operationId": "verify-email-code",
+                "parameters": [
+                    {
+                        "description": "Email, purpose and code",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.VerifyEmailVerificationCode"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/users/login": {
             "post": {
                 "description": "Login by login/email/phone + password",
@@ -1063,6 +1151,27 @@ const docTemplate = `{
                 }
             }
         },
+        "request.SendEmailVerificationCode": {
+            "type": "object",
+            "required": [
+                "email",
+                "purpose"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                },
+                "purpose": {
+                    "type": "string",
+                    "enum": [
+                        "register",
+                        "change_email"
+                    ],
+                    "example": "register"
+                }
+            }
+        },
         "request.SendPasswordResetCode": {
             "type": "object",
             "required": [
@@ -1152,6 +1261,32 @@ const docTemplate = `{
                 "street": {
                     "type": "string",
                     "example": "Тверская"
+                }
+            }
+        },
+        "request.VerifyEmailVerificationCode": {
+            "type": "object",
+            "required": [
+                "code",
+                "email",
+                "purpose"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "123456"
+                },
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                },
+                "purpose": {
+                    "type": "string",
+                    "enum": [
+                        "register",
+                        "change_email"
+                    ],
+                    "example": "register"
                 }
             }
         },

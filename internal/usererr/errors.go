@@ -10,4 +10,6 @@ var (
 	ErrInvalidRole     = errors.New("invalid role")
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrUserBlocked        = errors.New("user is blocked")
+	ErrInvalidCode        = errors.New("invalid code")
+	ErrCodeExpired        = errors.New("code expired")
 )

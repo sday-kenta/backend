@@ -3,10 +3,13 @@ package user
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/sday-kenta/backend/internal/entity"
 	"github.com/sday-kenta/backend/internal/repo"
 	"github.com/sday-kenta/backend/internal/usererr"
+	"github.com/sday-kenta/backend/pkg/mailsender"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -79,6 +82,45 @@ func (uc *UseCase) Authenticate(ctx context.Context, identifier, password string
 	}
 
 	return u, nil
+}
+
+func (uc *UseCase) SendEmailVerificationCode(ctx context.Context, email, purpose string) error {
+	email = strings.TrimSpace(email)
+	purpose = strings.TrimSpace(purpose)
+
+	// 10 minutes TTL
+	const ttl = 10 * time.Minute
+	code := mailsender.RandomRumber().String()
+
+	if err := uc.repo.CreateEmailVerificationCode(
+		ctx,
+		email,
+		purpose,
+		code,
+		time.Now().Add(ttl).Unix(),
+	); err != nil {
+		return err
+	}
+
+	subject := "Email verification code"
+	body := "Your code is " + code
+	if err := mailsender.SendMail(subject, body, []string{email}); err != nil {
+		return fmt.Errorf("UserUseCase - SendEmailVerificationCode - SendMail: %w", err)
+	}
+
+	return nil
+}
+
+func (uc *UseCase) VerifyEmailVerificationCode(ctx context.Context, email, purpose, code string) error {
+	email = strings.TrimSpace(email)
+	purpose = strings.TrimSpace(purpose)
+	code = strings.TrimSpace(code)
+
+	if err := uc.repo.ConsumeEmailVerificationCode(ctx, email, purpose, code, time.Now().Unix()); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // List returns all users.
