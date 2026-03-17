@@ -415,4 +415,45 @@ func (r *UsersV1) sendPasswordResetCode(ctx *fiber.Ctx) error {
 	return ctx.SendStatus(http.StatusNoContent)
 }
 
+// @Summary     Login
+// @Description Login by login/email/phone + password
+// @ID          users-login
+// @Tags  	    users
+// @Accept      json
+// @Produce     json
+// @Param       request body request.Login true "Credentials"
+// @Success     200 {object} entity.User
+// @Failure     400 {object} response.Error
+// @Failure     401 {object} response.Error
+// @Failure     403 {object} response.Error
+// @Failure     500 {object} response.Error
+// @Router      /users/login [post]
+func (r *UsersV1) login(ctx *fiber.Ctx) error {
+	var body request.Login
+	if err := ctx.BodyParser(&body); err != nil {
+		r.l.Error(err, "restapi - v1 - usersLogin")
+		return errorResponse(ctx, http.StatusBadRequest, "invalid request body")
+	}
+
+	if err := r.v.Struct(body); err != nil {
+		r.l.Error(err, "restapi - v1 - usersLogin")
+		return errorResponse(ctx, http.StatusBadRequest, formatValidationError(err))
+	}
+
+	user, err := r.u.Authenticate(ctx.UserContext(), body.Identifier, body.Password)
+	if err != nil {
+		r.l.Error(err, "restapi - v1 - usersLogin")
+		switch {
+		case errors.Is(err, usererr.ErrInvalidCredentials):
+			return errorResponse(ctx, http.StatusUnauthorized, "invalid credentials")
+		case errors.Is(err, usererr.ErrUserBlocked):
+			return errorResponse(ctx, http.StatusForbidden, "user is blocked")
+		default:
+			return userErrorResponse(ctx, err)
+		}
+	}
+
+	return ctx.Status(http.StatusOK).JSON(user)
+}
+
 

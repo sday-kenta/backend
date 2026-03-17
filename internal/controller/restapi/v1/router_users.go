@@ -18,6 +18,7 @@ func NewUserRoutes(apiV1Group fiber.Router, u usecase.User, l logger.Interface, 
 	usersGroup := apiV1Group.Group("/users")
 	{
 		usersGroup.Post("", r.createUser)
+		usersGroup.Post("/login", r.login)
 		usersGroup.Delete("/:id", r.deleteUser)
 		usersGroup.Get("/:id", r.getUser)
 		usersGroup.Get("", r.listUsers)

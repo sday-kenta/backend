@@ -112,6 +112,18 @@ definitions:
     - role
     - street
     type: object
+  request.Login:
+    properties:
+      identifier:
+        example: user123
+        type: string
+      password:
+        example: qwerty123
+        type: string
+    required:
+    - identifier
+    - password
+    type: object
   request.SendPasswordResetCode:
     properties:
       email:
@@ -233,6 +245,45 @@ info:
   title: Backend API
   version: "1.0"
 paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Login by login/email/phone + password
+      operationId: login
+      parameters:
+      - description: Credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.Login'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/entity.User'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Login
+      tags:
+      - auth
   /categories:
     get:
       consumes:
@@ -727,6 +778,45 @@ paths:
           schema:
             $ref: '#/definitions/response.Error'
       summary: Upload user avatar
+      tags:
+      - users
+  /users/login:
+    post:
+      consumes:
+      - application/json
+      description: Login by login/email/phone + password
+      operationId: users-login
+      parameters:
+      - description: Credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.Login'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/entity.User'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Login
       tags:
       - users
   /users/password-reset/send-code:
