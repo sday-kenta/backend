@@ -55,6 +55,51 @@ definitions:
     required:
     - title
     type: object
+  request.CreateIncident:
+    properties:
+      address_text:
+        example: Самара, проспект Ленина, 1
+        type: string
+      category_id:
+        example: 1
+        type: integer
+      city:
+        example: Самара
+        type: string
+      department_name:
+        example: ГИБДД
+        type: string
+      description:
+        example: Автомобиль припаркован на газоне и мешает проходу.
+        maxLength: 600
+        type: string
+      house:
+        example: "1"
+        type: string
+      latitude:
+        example: 53.2051714
+        type: number
+      longitude:
+        example: 50.1334676
+        type: number
+      status:
+        enum:
+        - draft
+        - published
+        example: published
+        type: string
+      street:
+        example: проспект Ленина
+        type: string
+      title:
+        example: Неправильная парковка во дворе
+        maxLength: 255
+        type: string
+    required:
+    - category_id
+    - description
+    - title
+    type: object
   request.CreateUser:
     properties:
       apartment:
@@ -139,6 +184,12 @@ definitions:
     - email
     - purpose
     type: object
+  request.SendIncidentDocumentEmail:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+    type: object
   request.SendPasswordResetCode:
     properties:
       email:
@@ -152,6 +203,47 @@ definitions:
       icon_url:
         type: string
       title:
+        type: string
+    type: object
+  request.UpdateIncident:
+    properties:
+      address_text:
+        example: Самара, проспект Ленина, 1
+        type: string
+      category_id:
+        example: 1
+        type: integer
+      city:
+        example: Самара
+        type: string
+      department_name:
+        example: ГИБДД
+        type: string
+      description:
+        example: Автомобиль припаркован на газоне и мешает проходу.
+        maxLength: 600
+        type: string
+      house:
+        example: "1"
+        type: string
+      latitude:
+        example: 53.2051714
+        type: number
+      longitude:
+        example: 50.1334676
+        type: number
+      status:
+        enum:
+        - draft
+        - published
+        example: draft
+        type: string
+      street:
+        example: проспект Ленина
+        type: string
+      title:
+        example: Неправильная парковка во дворе
+        maxLength: 255
         type: string
     type: object
   request.UpdateUser:
@@ -252,6 +344,87 @@ definitions:
         type: number
       road:
         example: проспект Ленина
+        type: string
+    type: object
+  response.Incident:
+    properties:
+      address_text:
+        example: Самара, проспект Ленина, 1
+        type: string
+      category_id:
+        example: 1
+        type: integer
+      category_title:
+        example: Нарушение правил парковки
+        type: string
+      city:
+        example: Самара
+        type: string
+      created_at:
+        type: string
+      department_name:
+        example: ГИБДД
+        type: string
+      description:
+        example: Автомобиль припаркован на газоне и мешает проходу.
+        type: string
+      house:
+        example: "1"
+        type: string
+      id:
+        example: 1
+        type: integer
+      latitude:
+        example: 53.2051714
+        type: number
+      longitude:
+        example: 50.1334676
+        type: number
+      photos:
+        items:
+          $ref: '#/definitions/response.IncidentPhoto'
+        type: array
+      published_at:
+        type: string
+      status:
+        example: published
+        type: string
+      street:
+        example: проспект Ленина
+        type: string
+      title:
+        example: Неправильная парковка во дворе
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        example: 2
+        type: integer
+    type: object
+  response.IncidentPhoto:
+    properties:
+      content_type:
+        example: image/jpeg
+        type: string
+      created_at:
+        type: string
+      file_url:
+        example: http://localhost:9000/avatars/incidents/1/photo-1.jpg
+        type: string
+      id:
+        example: 10
+        type: integer
+      size_bytes:
+        example: 245678
+        type: integer
+      sort_order:
+        example: 0
+        type: integer
+    type: object
+  response.MessageResponse:
+    properties:
+      message:
+        example: ok
         type: string
     type: object
   response.ReverseGeocodeResponse:
@@ -499,6 +672,485 @@ paths:
       summary: Update a category
       tags:
       - categories
+  /incidents:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает общий список опубликованных сообщений. Черновики в эту
+        выборку не попадают.
+      operationId: list-incidents
+      parameters:
+      - description: ID категории
+        in: query
+        name: category_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/response.Incident'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Получить список всех опубликованных инцидентов
+      tags:
+      - incidents
+    post:
+      consumes:
+      - application/json
+      description: Создает новое сообщение об инциденте. До внедрения JWT автор определяется
+        по заголовку X-User-ID.
+      operationId: create-incident
+      parameters:
+      - description: ID текущего пользователя
+        in: header
+        name: X-User-ID
+        required: true
+        type: integer
+      - description: Данные инцидента
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.CreateIncident'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.Incident'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Создать инцидент
+      tags:
+      - incidents
+  /incidents/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Удаляет инцидент и связанные с ним фотографии. Доступно только
+        автору или администратору.
+      operationId: delete-incident
+      parameters:
+      - description: ID инцидента
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: ID текущего пользователя
+        in: header
+        name: X-User-ID
+        required: true
+        type: integer
+      - default: user
+        description: Роль текущего пользователя
+        in: header
+        name: X-User-Role
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Удалить инцидент
+      tags:
+      - incidents
+    get:
+      consumes:
+      - application/json
+      description: Возвращает детальную карточку инцидента. Черновик доступен только
+        автору или администратору.
+      operationId: get-incident
+      parameters:
+      - description: ID инцидента
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: ID текущего пользователя
+        in: header
+        name: X-User-ID
+        type: integer
+      - default: user
+        description: Роль текущего пользователя
+        in: header
+        name: X-User-Role
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Incident'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Получить инцидент по ID
+      tags:
+      - incidents
+    patch:
+      consumes:
+      - application/json
+      description: Обновляет сообщение об инциденте. Доступно только автору или администратору.
+      operationId: update-incident
+      parameters:
+      - description: ID инцидента
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: ID текущего пользователя
+        in: header
+        name: X-User-ID
+        required: true
+        type: integer
+      - default: user
+        description: Роль текущего пользователя
+        in: header
+        name: X-User-Role
+        type: string
+      - description: Поля для обновления инцидента
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.UpdateIncident'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Incident'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Обновить инцидент
+      tags:
+      - incidents
+  /incidents/{id}/document/download:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает HTML-документ обращения по инциденту с Content-Disposition
+        attachment.
+      operationId: download-incident-document
+      parameters:
+      - description: ID инцидента
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: ID текущего пользователя
+        in: header
+        name: X-User-ID
+        required: true
+        type: integer
+      - default: user
+        description: Роль текущего пользователя
+        in: header
+        name: X-User-Role
+        type: string
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: HTML документ обращения
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Скачать документ обращения
+      tags:
+      - incidents
+  /incidents/{id}/document/email:
+    post:
+      consumes:
+      - application/json
+      description: Отправляет документ обращения на указанный email. Если email не
+        передан, используется email автора инцидента.
+      operationId: email-incident-document
+      parameters:
+      - description: ID инцидента
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: ID текущего пользователя
+        in: header
+        name: X-User-ID
+        required: true
+        type: integer
+      - default: user
+        description: Роль текущего пользователя
+        in: header
+        name: X-User-Role
+        type: string
+      - description: Email получателя; можно не передавать
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/request.SendIncidentDocumentEmail'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Отправить документ обращения на email
+      tags:
+      - incidents
+  /incidents/{id}/document/print:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает HTML-документ обращения с inline Content-Disposition
+        для печати на клиенте.
+      operationId: print-incident-document
+      parameters:
+      - description: ID инцидента
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: ID текущего пользователя
+        in: header
+        name: X-User-ID
+        required: true
+        type: integer
+      - default: user
+        description: Роль текущего пользователя
+        in: header
+        name: X-User-Role
+        type: string
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: HTML документ обращения
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Получить печатную версию документа обращения
+      tags:
+      - incidents
+  /incidents/{id}/photos:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Загружает одну или несколько фотографий инцидента. Используй multipart/form-data
+        с повторяемым полем photos.
+      operationId: upload-incident-photos
+      parameters:
+      - description: ID инцидента
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: ID текущего пользователя
+        in: header
+        name: X-User-ID
+        required: true
+        type: integer
+      - default: user
+        description: Роль текущего пользователя
+        in: header
+        name: X-User-Role
+        type: string
+      - description: Фотографии инцидента в формате JPEG/PNG; поле можно передавать
+          несколько раз
+        in: formData
+        name: photos
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            items:
+              $ref: '#/definitions/response.IncidentPhoto'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Загрузить фотографии инцидента
+      tags:
+      - incidents
+  /incidents/{id}/photos/{photoId}:
+    delete:
+      consumes:
+      - application/json
+      description: Удаляет фотографию инцидента. Доступно только автору или администратору.
+      operationId: delete-incident-photo
+      parameters:
+      - description: ID инцидента
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: ID фотографии
+        in: path
+        name: photoId
+        required: true
+        type: integer
+      - description: ID текущего пользователя
+        in: header
+        name: X-User-ID
+        required: true
+        type: integer
+      - default: user
+        description: Роль текущего пользователя
+        in: header
+        name: X-User-Role
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Удалить фотографию инцидента
+      tags:
+      - incidents
   /maps/reload-cities:
     post:
       consumes:
@@ -637,6 +1289,51 @@ paths:
       summary: Поиск адреса по строке
       tags:
       - maps
+  /my/incidents:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает список инцидентов текущего пользователя, включая черновики
+        и опубликованные сообщения.
+      operationId: list-my-incidents
+      parameters:
+      - description: ID текущего пользователя
+        in: header
+        name: X-User-ID
+        required: true
+        type: integer
+      - description: Фильтр по статусу
+        enum:
+        - draft
+        - published
+        - all
+        in: query
+        name: status
+        type: string
+      - description: ID категории
+        in: query
+        name: category_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/response.Incident'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Получить мои инциденты
+      tags:
+      - incidents
   /users:
     get:
       consumes:

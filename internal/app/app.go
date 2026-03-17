@@ -13,6 +13,7 @@ import (
 	"github.com/sday-kenta/backend/internal/repo/webapi"
 	"github.com/sday-kenta/backend/internal/usecase/category"
 	geoUseCase "github.com/sday-kenta/backend/internal/usecase/geo"
+	incidentUseCase "github.com/sday-kenta/backend/internal/usecase/incident"
 	userUseCase "github.com/sday-kenta/backend/internal/usecase/user"
 	"github.com/sday-kenta/backend/pkg/httpserver"
 	"github.com/sday-kenta/backend/pkg/logger"
@@ -45,10 +46,12 @@ func Run(cfg *config.Config) { //nolint: gocyclo,cyclop,funlen,gocritic,nolintli
 		l.Fatal(fmt.Errorf("app - Run - geoUC.ReloadCities: %w", err))
 	}
 
-	userUC := userUseCase.New(persistent.NewUserRepo(pg))
+	userRepo := persistent.NewUserRepo(pg)
+	userUC := userUseCase.New(userRepo)
+	incidentUC := incidentUseCase.New(persistent.NewIncidentRepo(pg), userRepo, persistent.NewCategoryRepo(pg))
 
 	httpServer := httpserver.New(l, httpserver.Port(cfg.HTTP.Port), httpserver.Prefork(cfg.HTTP.UsePreforkMode))
-	restapi.NewRouter(httpServer.App, cfg, categoryUC, geoUC, userUC, l)
+	restapi.NewRouter(httpServer.App, cfg, categoryUC, geoUC, userUC, incidentUC, l)
 
 	httpServer.Start()
 

@@ -41,4 +41,14 @@ type (
 		Update(ctx context.Context, user *entity.User) error
 		UpdateAvatar(ctx context.Context, id int64, avatarURL string) error
 	}
+
+	IncidentRepo interface {
+		Create(ctx context.Context, incident *entity.Incident) error
+		GetByID(ctx context.Context, id int64) (entity.Incident, error)
+		List(ctx context.Context, filter entity.IncidentFilter) ([]entity.Incident, error)
+		Update(ctx context.Context, incident *entity.Incident) error
+		Delete(ctx context.Context, id int64) error
+		CreatePhoto(ctx context.Context, photo *entity.IncidentPhoto) error
+		DeletePhoto(ctx context.Context, incidentID, photoID int64) (entity.IncidentPhoto, error)
+	}
 )

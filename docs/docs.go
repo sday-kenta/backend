@@ -341,6 +341,702 @@ const docTemplate = `{
                 }
             }
         },
+        "/incidents": {
+            "get": {
+                "description": "Возвращает общий список опубликованных сообщений. Черновики в эту выборку не попадают.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "incidents"
+                ],
+                "summary": "Получить список всех опубликованных инцидентов",
+                "operationId": "list-incidents",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID категории",
+                        "name": "category_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/response.Incident"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Создает новое сообщение об инциденте. До внедрения JWT автор определяется по заголовку X-User-ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "incidents"
+                ],
+                "summary": "Создать инцидент",
+                "operationId": "create-incident",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID текущего пользователя",
+                        "name": "X-User-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Данные инцидента",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.CreateIncident"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/response.Incident"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/incidents/{id}": {
+            "get": {
+                "description": "Возвращает детальную карточку инцидента. Черновик доступен только автору или администратору.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "incidents"
+                ],
+                "summary": "Получить инцидент по ID",
+                "operationId": "get-incident",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID инцидента",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID текущего пользователя",
+                        "name": "X-User-ID",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "default": "user",
+                        "description": "Роль текущего пользователя",
+                        "name": "X-User-Role",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Incident"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Удаляет инцидент и связанные с ним фотографии. Доступно только автору или администратору.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "incidents"
+                ],
+                "summary": "Удалить инцидент",
+                "operationId": "delete-incident",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID инцидента",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID текущего пользователя",
+                        "name": "X-User-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "user",
+                        "description": "Роль текущего пользователя",
+                        "name": "X-User-Role",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Обновляет сообщение об инциденте. Доступно только автору или администратору.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "incidents"
+                ],
+                "summary": "Обновить инцидент",
+                "operationId": "update-incident",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID инцидента",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID текущего пользователя",
+                        "name": "X-User-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "user",
+                        "description": "Роль текущего пользователя",
+                        "name": "X-User-Role",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Поля для обновления инцидента",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.UpdateIncident"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Incident"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/incidents/{id}/document/download": {
+            "get": {
+                "description": "Возвращает HTML-документ обращения по инциденту с Content-Disposition attachment.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "incidents"
+                ],
+                "summary": "Скачать документ обращения",
+                "operationId": "download-incident-document",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID инцидента",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID текущего пользователя",
+                        "name": "X-User-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "user",
+                        "description": "Роль текущего пользователя",
+                        "name": "X-User-Role",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "HTML документ обращения",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/incidents/{id}/document/email": {
+            "post": {
+                "description": "Отправляет документ обращения на указанный email. Если email не передан, используется email автора инцидента.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "incidents"
+                ],
+                "summary": "Отправить документ обращения на email",
+                "operationId": "email-incident-document",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID инцидента",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID текущего пользователя",
+                        "name": "X-User-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "user",
+                        "description": "Роль текущего пользователя",
+                        "name": "X-User-Role",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Email получателя; можно не передавать",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/request.SendIncidentDocumentEmail"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/incidents/{id}/document/print": {
+            "get": {
+                "description": "Возвращает HTML-документ обращения с inline Content-Disposition для печати на клиенте.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "incidents"
+                ],
+                "summary": "Получить печатную версию документа обращения",
+                "operationId": "print-incident-document",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID инцидента",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID текущего пользователя",
+                        "name": "X-User-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "user",
+                        "description": "Роль текущего пользователя",
+                        "name": "X-User-Role",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "HTML документ обращения",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/incidents/{id}/photos": {
+            "post": {
+                "description": "Загружает одну или несколько фотографий инцидента. Используй multipart/form-data с повторяемым полем photos.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "incidents"
+                ],
+                "summary": "Загрузить фотографии инцидента",
+                "operationId": "upload-incident-photos",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID инцидента",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID текущего пользователя",
+                        "name": "X-User-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "user",
+                        "description": "Роль текущего пользователя",
+                        "name": "X-User-Role",
+                        "in": "header"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Фотографии инцидента в формате JPEG/PNG; поле можно передавать несколько раз",
+                        "name": "photos",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/response.IncidentPhoto"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/incidents/{id}/photos/{photoId}": {
+            "delete": {
+                "description": "Удаляет фотографию инцидента. Доступно только автору или администратору.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "incidents"
+                ],
+                "summary": "Удалить фотографию инцидента",
+                "operationId": "delete-incident-photo",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID инцидента",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID фотографии",
+                        "name": "photoId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID текущего пользователя",
+                        "name": "X-User-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "user",
+                        "description": "Роль текущего пользователя",
+                        "name": "X-User-Role",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/maps/reload-cities": {
             "post": {
                 "description": "Reloads in-memory supported cities from zones table. Admin only.",
@@ -513,6 +1209,71 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Внутренняя ошибка сервиса карт",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/my/incidents": {
+            "get": {
+                "description": "Возвращает список инцидентов текущего пользователя, включая черновики и опубликованные сообщения.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "incidents"
+                ],
+                "summary": "Получить мои инциденты",
+                "operationId": "list-my-incidents",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID текущего пользователя",
+                        "name": "X-User-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "draft",
+                            "published",
+                            "all"
+                        ],
+                        "type": "string",
+                        "description": "Фильтр по статусу",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "ID категории",
+                        "name": "category_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/response.Incident"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }
@@ -1060,6 +1821,66 @@ const docTemplate = `{
                 }
             }
         },
+        "request.CreateIncident": {
+            "type": "object",
+            "required": [
+                "category_id",
+                "description",
+                "title"
+            ],
+            "properties": {
+                "address_text": {
+                    "type": "string",
+                    "example": "Самара, проспект Ленина, 1"
+                },
+                "category_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "city": {
+                    "type": "string",
+                    "example": "Самара"
+                },
+                "department_name": {
+                    "type": "string",
+                    "example": "ГИБДД"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 600,
+                    "example": "Автомобиль припаркован на газоне и мешает проходу."
+                },
+                "house": {
+                    "type": "string",
+                    "example": "1"
+                },
+                "latitude": {
+                    "type": "number",
+                    "example": 53.2051714
+                },
+                "longitude": {
+                    "type": "number",
+                    "example": 50.1334676
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "draft",
+                        "published"
+                    ],
+                    "example": "published"
+                },
+                "street": {
+                    "type": "string",
+                    "example": "проспект Ленина"
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "example": "Неправильная парковка во дворе"
+                }
+            }
+        },
         "request.CreateUser": {
             "type": "object",
             "required": [
@@ -1172,6 +1993,15 @@ const docTemplate = `{
                 }
             }
         },
+        "request.SendIncidentDocumentEmail": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                }
+            }
+        },
         "request.SendPasswordResetCode": {
             "type": "object",
             "required": [
@@ -1192,6 +2022,61 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
+                }
+            }
+        },
+        "request.UpdateIncident": {
+            "type": "object",
+            "properties": {
+                "address_text": {
+                    "type": "string",
+                    "example": "Самара, проспект Ленина, 1"
+                },
+                "category_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "city": {
+                    "type": "string",
+                    "example": "Самара"
+                },
+                "department_name": {
+                    "type": "string",
+                    "example": "ГИБДД"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 600,
+                    "example": "Автомобиль припаркован на газоне и мешает проходу."
+                },
+                "house": {
+                    "type": "string",
+                    "example": "1"
+                },
+                "latitude": {
+                    "type": "number",
+                    "example": 53.2051714
+                },
+                "longitude": {
+                    "type": "number",
+                    "example": 50.1334676
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "draft",
+                        "published"
+                    ],
+                    "example": "draft"
+                },
+                "street": {
+                    "type": "string",
+                    "example": "проспект Ленина"
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "example": "Неправильная парковка во дворе"
                 }
             }
         },
@@ -1325,6 +2210,119 @@ const docTemplate = `{
                 "road": {
                     "type": "string",
                     "example": "проспект Ленина"
+                }
+            }
+        },
+        "response.Incident": {
+            "type": "object",
+            "properties": {
+                "address_text": {
+                    "type": "string",
+                    "example": "Самара, проспект Ленина, 1"
+                },
+                "category_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "category_title": {
+                    "type": "string",
+                    "example": "Нарушение правил парковки"
+                },
+                "city": {
+                    "type": "string",
+                    "example": "Самара"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "department_name": {
+                    "type": "string",
+                    "example": "ГИБДД"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Автомобиль припаркован на газоне и мешает проходу."
+                },
+                "house": {
+                    "type": "string",
+                    "example": "1"
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "latitude": {
+                    "type": "number",
+                    "example": 53.2051714
+                },
+                "longitude": {
+                    "type": "number",
+                    "example": 50.1334676
+                },
+                "photos": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/response.IncidentPhoto"
+                    }
+                },
+                "published_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "published"
+                },
+                "street": {
+                    "type": "string",
+                    "example": "проспект Ленина"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Неправильная парковка во дворе"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer",
+                    "example": 2
+                }
+            }
+        },
+        "response.IncidentPhoto": {
+            "type": "object",
+            "properties": {
+                "content_type": {
+                    "type": "string",
+                    "example": "image/jpeg"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "file_url": {
+                    "type": "string",
+                    "example": "http://localhost:9000/avatars/incidents/1/photo-1.jpg"
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "size_bytes": {
+                    "type": "integer",
+                    "example": 245678
+                },
+                "sort_order": {
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
+        "response.MessageResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "ok"
                 }
             }
         },

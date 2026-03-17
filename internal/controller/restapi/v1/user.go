@@ -4,24 +4,20 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	awscfg "github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/sday-kenta/backend/internal/controller/restapi/v1/request"
-	"github.com/sday-kenta/backend/internal/entity"
-	"github.com/sday-kenta/backend/internal/usererr"
-	"github.com/sday-kenta/backend/internal/usecase"
-	"github.com/sday-kenta/backend/pkg/mailsender"
-	"github.com/sday-kenta/backend/pkg/logger"
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	"github.com/sday-kenta/backend/internal/controller/restapi/v1/request"
+	"github.com/sday-kenta/backend/internal/entity"
+	"github.com/sday-kenta/backend/internal/usecase"
+	"github.com/sday-kenta/backend/internal/usererr"
+	"github.com/sday-kenta/backend/pkg/logger"
+	"github.com/sday-kenta/backend/pkg/mailsender"
+	"github.com/sday-kenta/backend/pkg/objectstorage"
 )
 
 func userErrorResponse(ctx *fiber.Ctx, err error) error {
@@ -278,7 +274,6 @@ func (r *UsersV1) uploadAvatar(ctx *fiber.Ctx) error {
 		return errorResponse(ctx, http.StatusBadRequest, "avatar file is required")
 	}
 
-	// Limit size to 2MB to avoid storing huge files in DB.
 	const maxAvatarSize = 2 * 1024 * 1024 // 2MB
 	if fileHeader.Size > maxAvatarSize {
 		return errorResponse(ctx, http.StatusBadRequest, "avatar file too large (max 2MB)")
@@ -287,80 +282,34 @@ func (r *UsersV1) uploadAvatar(ctx *fiber.Ctx) error {
 	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
 	switch ext {
 	case ".png", ".jpg", ".jpeg":
-		// ok
 	default:
 		return errorResponse(ctx, http.StatusBadRequest, "avatar file must be PNG or JPG")
 	}
 
-	avatarKey := fmt.Sprintf("user-%d-%d%s", id, time.Now().UnixNano(), ext)
+	avatarKey := fmt.Sprintf("users/user-%d-%d%s", id, time.Now().UnixNano(), ext)
 
-	bucket := os.Getenv("AWS_S3_BUCKET")
-	endpoint := os.Getenv("AWS_S3_ENDPOINT")
-	region := os.Getenv("AWS_REGION")
-	accessKey := os.Getenv("AWS_ACCESS_KEY_ID")
-	secretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-
-	if bucket == "" || endpoint == "" || region == "" || accessKey == "" || secretKey == "" {
+	storage, err := objectstorage.NewFromEnv(ctx.UserContext())
+	if err != nil {
+		r.l.Error(err, "restapi - v1 - uploadAvatar - NewFromEnv")
 		return errorResponse(ctx, http.StatusInternalServerError, "avatar storage is not configured")
 	}
 
 	file, err := fileHeader.Open()
 	if err != nil {
 		r.l.Error(err, "restapi - v1 - uploadAvatar - FormFile.Open")
-
 		return errorResponse(ctx, http.StatusInternalServerError, "failed to read avatar file")
 	}
 	defer func() {
 		_ = file.Close()
 	}()
 
-	awsCfg, err := awscfg.LoadDefaultConfig(
-		ctx.UserContext(),
-		awscfg.WithRegion(region),
-		awscfg.WithCredentialsProvider(
-			aws.NewCredentialsCache(
-				credentials.NewStaticCredentialsProvider(accessKey, secretKey, ""),
-			),
-		),
-		awscfg.WithEndpointResolverWithOptions(
-			aws.EndpointResolverWithOptionsFunc(
-				func(service, _ string, _ ...interface{}) (aws.Endpoint, error) {
-					if service == s3.ServiceID {
-						return aws.Endpoint{
-							URL:               endpoint,
-							HostnameImmutable: true,
-						}, nil
-					}
-
-					return aws.Endpoint{}, &aws.EndpointNotFoundError{}
-				},
-			),
-		),
-	)
-	if err != nil {
-		r.l.Error(err, "restapi - v1 - uploadAvatar - LoadDefaultConfig")
-
-		return errorResponse(ctx, http.StatusInternalServerError, "failed to initialize avatar storage")
-	}
-
-	s3Client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
-		o.UsePathStyle = true
-	})
-
 	contentType := fileHeader.Header.Get("Content-Type")
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
 
-	_, err = s3Client.PutObject(ctx.UserContext(), &s3.PutObjectInput{
-		Bucket:      aws.String(bucket),
-		Key:         aws.String(avatarKey),
-		Body:        file,
-		ContentType: aws.String(contentType),
-	})
-	if err != nil {
-		r.l.Error(err, "restapi - v1 - uploadAvatar - PutObject")
-
+	if err = storage.Upload(ctx.UserContext(), avatarKey, contentType, file); err != nil {
+		r.l.Error(err, "restapi - v1 - uploadAvatar - Upload")
 		return errorResponse(ctx, http.StatusInternalServerError, "failed to upload avatar")
 	}
 
@@ -372,6 +321,7 @@ func (r *UsersV1) uploadAvatar(ctx *fiber.Ctx) error {
 
 	if err = r.u.UpdateAvatar(ctx.UserContext(), id, avatarValue); err != nil {
 		r.l.Error(err, "restapi - v1 - uploadAvatar")
+		_ = storage.Delete(ctx.UserContext(), avatarKey)
 		return userErrorResponse(ctx, err)
 	}
 
@@ -524,5 +474,3 @@ func (r *UsersV1) login(ctx *fiber.Ctx) error {
 
 	return ctx.Status(http.StatusOK).JSON(user)
 }
-
-

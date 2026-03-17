@@ -25,14 +25,14 @@ import (
 // @version     1.0
 // @host        localhost:8080
 // @BasePath    /v1
-func NewRouter(app *fiber.App, cfg *config.Config, c usecase.Category, g usecase.Geo, u usecase.User, l logger.Interface) {
+func NewRouter(app *fiber.App, cfg *config.Config, c usecase.Category, g usecase.Geo, u usecase.User, i usecase.Incident, l logger.Interface) {
 	app.Use(middleware.Logger(l))
 	app.Use(middleware.Recovery(l))
 
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
 		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-User-Role",
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-User-Role, X-User-ID",
 	}))
 
 	if cfg.Metrics.Enabled {
@@ -52,6 +52,11 @@ func NewRouter(app *fiber.App, cfg *config.Config, c usecase.Category, g usecase
 		v1.NewCategoryRoutes(apiV1Group, c, l)
 		v1.NewGeoRoutes(apiV1Group, g, l)
 		v1.NewUserRoutes(apiV1Group, u, l, cfg.CDN.AvatarBaseURL)
+		incidentMediaBaseURL := cfg.CDN.IncidentMediaBaseURL
+		if incidentMediaBaseURL == "" {
+			incidentMediaBaseURL = cfg.CDN.AvatarBaseURL
+		}
+		v1.NewIncidentRoutes(apiV1Group, i, l, incidentMediaBaseURL)
 		v1.NewAuthRoutes(apiV1Group, u, l)
 	}
 }
