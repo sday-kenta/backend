@@ -25,6 +25,7 @@ Combined backend service for maps and users domains.
 - `PUT /v1/users/{id}`
 - `DELETE /v1/users/{id}`
 - `POST /v1/users/{id}/avatar`
+- `POST /v1/users/password-reset/send-code`
 
 ## Notes
 - Database image is PostGIS because maps requires it.
