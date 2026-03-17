@@ -18,6 +18,7 @@ import (
 	"github.com/sday-kenta/backend/internal/entity"
 	"github.com/sday-kenta/backend/internal/usererr"
 	"github.com/sday-kenta/backend/internal/usecase"
+	"github.com/sday-kenta/backend/pkg/mailsender"
 	"github.com/sday-kenta/backend/pkg/logger"
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
@@ -372,6 +373,43 @@ func (r *UsersV1) uploadAvatar(ctx *fiber.Ctx) error {
 	if err = r.u.UpdateAvatar(ctx.UserContext(), id, avatarValue); err != nil {
 		r.l.Error(err, "restapi - v1 - uploadAvatar")
 		return userErrorResponse(ctx, err)
+	}
+
+	return ctx.SendStatus(http.StatusNoContent)
+}
+
+// @Summary     Send password reset code
+// @Description Send a password reset code to email
+// @ID          send-password-reset-code
+// @Tags  	    users
+// @Accept      json
+// @Produce     json
+// @Param       request body request.SendPasswordResetCode true "Email"
+// @Success     204
+// @Failure     400 {object} response.Error
+// @Failure     500 {object} response.Error
+// @Router      /users/password-reset/send-code [post]
+func (r *UsersV1) sendPasswordResetCode(ctx *fiber.Ctx) error {
+	var body request.SendPasswordResetCode
+
+	if err := ctx.BodyParser(&body); err != nil {
+		r.l.Error(err, "restapi - v1 - sendPasswordResetCode")
+		return errorResponse(ctx, http.StatusBadRequest, "invalid request body")
+	}
+
+	if err := r.v.Struct(body); err != nil {
+		r.l.Error(err, "restapi - v1 - sendPasswordResetCode")
+		return errorResponse(ctx, http.StatusBadRequest, formatValidationError(err))
+	}
+
+	code := mailsender.RandomRumber().String()
+	if err := mailsender.SendMail(
+		"Password Recovery 'SdayKenta' ",
+		"Your code is "+code,
+		[]string{body.Email},
+	); err != nil {
+		r.l.Error(err, "restapi - v1 - sendPasswordResetCode - SendMail")
+		return errorResponse(ctx, http.StatusInternalServerError, "failed to send email")
 	}
 
 	return ctx.SendStatus(http.StatusNoContent)

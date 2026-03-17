@@ -112,6 +112,14 @@ definitions:
     - role
     - street
     type: object
+  request.SendPasswordResetCode:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+    required:
+    - email
+    type: object
   request.UpdateCategory:
     properties:
       icon_url:
@@ -719,6 +727,35 @@ paths:
           schema:
             $ref: '#/definitions/response.Error'
       summary: Upload user avatar
+      tags:
+      - users
+  /users/password-reset/send-code:
+    post:
+      consumes:
+      - application/json
+      description: Send a password reset code to email
+      operationId: send-password-reset-code
+      parameters:
+      - description: Email
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.SendPasswordResetCode'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Send password reset code
       tags:
       - users
 swagger: "2.0"
