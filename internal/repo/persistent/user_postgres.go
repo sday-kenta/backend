@@ -312,6 +312,42 @@ func (r *UserRepo) CreateEmailVerificationCode(
 	return nil
 }
 
+func (r *UserRepo) CheckEmailVerificationCode(
+	ctx context.Context,
+	email, purpose, code string,
+	nowUnix int64,
+) error {
+	now := time.Unix(nowUnix, 0).UTC()
+
+	var (
+		dbCode    string
+		expiresAt time.Time
+	)
+
+	err := r.Pool.QueryRow(
+		ctx,
+		`SELECT code, expires_at
+		 FROM email_verification_codes
+		 WHERE email = $1 AND purpose = $2 AND consumed_at IS NULL
+		 ORDER BY created_at DESC
+		 LIMIT 1`,
+		email,
+		purpose,
+	).Scan(&dbCode, &expiresAt)
+	if err != nil {
+		return mapPgError(err)
+	}
+
+	if now.After(expiresAt) {
+		return usererr.ErrCodeExpired
+	}
+	if dbCode != code {
+		return usererr.ErrInvalidCode
+	}
+
+	return nil
+}
+
 func (r *UserRepo) ConsumeEmailVerificationCode(
 	ctx context.Context,
 	email, purpose, code string,
@@ -366,6 +402,24 @@ func (r *UserRepo) ConsumeEmailVerificationCode(
 
 	if err = tx.Commit(ctx); err != nil {
 		return fmt.Errorf("UserRepo - ConsumeEmailVerificationCode - Commit: %w", err)
+	}
+
+	return nil
+}
+
+func (r *UserRepo) UpdatePasswordHashByEmail(ctx context.Context, email, passwordHash string) error {
+	var updatedID int64
+	err := r.Pool.QueryRow(
+		ctx,
+		`UPDATE users
+		 SET password_hash = $1, updated_at = NOW()
+		 WHERE lower(email) = lower($2)
+		 RETURNING id`,
+		passwordHash,
+		email,
+	).Scan(&updatedID)
+	if err != nil {
+		return mapPgError(err)
 	}
 
 	return nil

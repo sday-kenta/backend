@@ -123,6 +123,63 @@ func (uc *UseCase) VerifyEmailVerificationCode(ctx context.Context, email, purpo
 	return nil
 }
 
+func (uc *UseCase) SendPasswordResetCode(ctx context.Context, email string) error {
+	email = strings.TrimSpace(email)
+
+	const ttl = 10 * time.Minute
+	code := mailsender.RandomRumber().String()
+
+	if err := uc.repo.CreateEmailVerificationCode(
+		ctx,
+		email,
+		"password_reset",
+		code,
+		time.Now().Add(ttl).Unix(),
+	); err != nil {
+		return err
+	}
+
+	subject := "Password reset code"
+	body := "Your code is " + code
+	if err := mailsender.SendMail(subject, body, []string{email}); err != nil {
+		return fmt.Errorf("UserUseCase - SendPasswordResetCode - SendMail: %w", err)
+	}
+
+	return nil
+}
+
+func (uc *UseCase) VerifyPasswordResetCode(ctx context.Context, email, code string) error {
+	email = strings.TrimSpace(email)
+	code = strings.TrimSpace(code)
+
+	if err := uc.repo.CheckEmailVerificationCode(ctx, email, "password_reset", code, time.Now().Unix()); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (uc *UseCase) ResetPassword(ctx context.Context, email, code, newPassword string) error {
+	email = strings.TrimSpace(email)
+	code = strings.TrimSpace(code)
+
+	// One-time: consume code, then update password.
+	if err := uc.repo.ConsumeEmailVerificationCode(ctx, email, "password_reset", code, time.Now().Unix()); err != nil {
+		return err
+	}
+
+	hashed, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("UserUseCase - ResetPassword - bcrypt.GenerateFromPassword: %w", err)
+	}
+
+	if err = uc.repo.UpdatePasswordHashByEmail(ctx, email, string(hashed)); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // List returns all users.
 func (uc *UseCase) List(ctx context.Context) ([]entity.User, error) {
 	users, err := uc.repo.List(ctx)

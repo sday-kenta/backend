@@ -124,6 +124,22 @@ definitions:
     - identifier
     - password
     type: object
+  request.ResetPassword:
+    properties:
+      code:
+        example: "123456"
+        type: string
+      email:
+        example: user@example.com
+        type: string
+      new_password:
+        example: newStrongPassword123
+        type: string
+    required:
+    - code
+    - email
+    - new_password
+    type: object
   request.SendEmailVerificationCode:
     properties:
       email:
@@ -225,6 +241,18 @@ definitions:
     - code
     - email
     - purpose
+    type: object
+  request.VerifyPasswordResetCode:
+    properties:
+      code:
+        example: "123456"
+        type: string
+      email:
+        example: user@example.com
+        type: string
+    required:
+    - code
+    - email
     type: object
   response.Error:
     properties:
@@ -911,6 +939,35 @@ paths:
       summary: Login
       tags:
       - users
+  /users/password-reset/reset:
+    post:
+      consumes:
+      - application/json
+      description: Resets password using verified code (one-time)
+      operationId: reset-password
+      parameters:
+      - description: Email, code and new password
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.ResetPassword'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Reset password
+      tags:
+      - users
   /users/password-reset/send-code:
     post:
       consumes:
@@ -938,6 +995,36 @@ paths:
           schema:
             $ref: '#/definitions/response.Error'
       summary: Send password reset code
+      tags:
+      - users
+  /users/password-reset/verify-code:
+    post:
+      consumes:
+      - application/json
+      description: Checks password reset code and allows proceeding to password change
+        page
+      operationId: verify-password-reset-code
+      parameters:
+      - description: Email and code
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.VerifyPasswordResetCode'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Verify password reset code
       tags:
       - users
 swagger: "2.0"

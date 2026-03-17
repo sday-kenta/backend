@@ -36,7 +36,9 @@ type (
 		GetByID(ctx context.Context, id int64) (entity.User, error)
 		GetByIdentifier(ctx context.Context, identifier string) (entity.User, error)
 		CreateEmailVerificationCode(ctx context.Context, email, purpose, code string, expiresAtUnix int64) error
+		CheckEmailVerificationCode(ctx context.Context, email, purpose, code string, nowUnix int64) error
 		ConsumeEmailVerificationCode(ctx context.Context, email, purpose, code string, nowUnix int64) error
+		UpdatePasswordHashByEmail(ctx context.Context, email, passwordHash string) error
 		List(ctx context.Context) ([]entity.User, error)
 		Update(ctx context.Context, user *entity.User) error
 		UpdateAvatar(ctx context.Context, id int64, avatarURL string) error

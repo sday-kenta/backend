@@ -18,7 +18,6 @@ import (
 	"github.com/sday-kenta/backend/internal/entity"
 	"github.com/sday-kenta/backend/internal/usererr"
 	"github.com/sday-kenta/backend/internal/usecase"
-	"github.com/sday-kenta/backend/pkg/mailsender"
 	"github.com/sday-kenta/backend/pkg/logger"
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
@@ -402,14 +401,83 @@ func (r *UsersV1) sendPasswordResetCode(ctx *fiber.Ctx) error {
 		return errorResponse(ctx, http.StatusBadRequest, formatValidationError(err))
 	}
 
-	code := mailsender.RandomRumber().String()
-	if err := mailsender.SendMail(
-		"Password Recovery 'SdayKenta' ",
-		"Your code is "+code,
-		[]string{body.Email},
-	); err != nil {
-		r.l.Error(err, "restapi - v1 - sendPasswordResetCode - SendMail")
-		return errorResponse(ctx, http.StatusInternalServerError, "failed to send email")
+	if err := r.u.SendPasswordResetCode(ctx.UserContext(), body.Email); err != nil {
+		r.l.Error(err, "restapi - v1 - sendPasswordResetCode")
+		return userErrorResponse(ctx, err)
+	}
+
+	return ctx.SendStatus(http.StatusNoContent)
+}
+
+// @Summary     Verify password reset code
+// @Description Checks password reset code and allows proceeding to password change page
+// @ID          verify-password-reset-code
+// @Tags  	    users
+// @Accept      json
+// @Produce     json
+// @Param       request body request.VerifyPasswordResetCode true "Email and code"
+// @Success     204
+// @Failure     400 {object} response.Error
+// @Failure     500 {object} response.Error
+// @Router      /users/password-reset/verify-code [post]
+func (r *UsersV1) verifyPasswordResetCode(ctx *fiber.Ctx) error {
+	var body request.VerifyPasswordResetCode
+
+	if err := ctx.BodyParser(&body); err != nil {
+		r.l.Error(err, "restapi - v1 - verifyPasswordResetCode")
+		return errorResponse(ctx, http.StatusBadRequest, "invalid request body")
+	}
+
+	if err := r.v.Struct(body); err != nil {
+		r.l.Error(err, "restapi - v1 - verifyPasswordResetCode")
+		return errorResponse(ctx, http.StatusBadRequest, formatValidationError(err))
+	}
+
+	if err := r.u.VerifyPasswordResetCode(ctx.UserContext(), body.Email, body.Code); err != nil {
+		r.l.Error(err, "restapi - v1 - verifyPasswordResetCode")
+		switch {
+		case errors.Is(err, usererr.ErrInvalidCode), errors.Is(err, usererr.ErrCodeExpired):
+			return errorResponse(ctx, http.StatusBadRequest, err.Error())
+		default:
+			return userErrorResponse(ctx, err)
+		}
+	}
+
+	return ctx.SendStatus(http.StatusNoContent)
+}
+
+// @Summary     Reset password
+// @Description Resets password using verified code (one-time)
+// @ID          reset-password
+// @Tags  	    users
+// @Accept      json
+// @Produce     json
+// @Param       request body request.ResetPassword true "Email, code and new password"
+// @Success     204
+// @Failure     400 {object} response.Error
+// @Failure     500 {object} response.Error
+// @Router      /users/password-reset/reset [post]
+func (r *UsersV1) resetPassword(ctx *fiber.Ctx) error {
+	var body request.ResetPassword
+
+	if err := ctx.BodyParser(&body); err != nil {
+		r.l.Error(err, "restapi - v1 - resetPassword")
+		return errorResponse(ctx, http.StatusBadRequest, "invalid request body")
+	}
+
+	if err := r.v.Struct(body); err != nil {
+		r.l.Error(err, "restapi - v1 - resetPassword")
+		return errorResponse(ctx, http.StatusBadRequest, formatValidationError(err))
+	}
+
+	if err := r.u.ResetPassword(ctx.UserContext(), body.Email, body.Code, body.NewPassword); err != nil {
+		r.l.Error(err, "restapi - v1 - resetPassword")
+		switch {
+		case errors.Is(err, usererr.ErrInvalidCode), errors.Is(err, usererr.ErrCodeExpired):
+			return errorResponse(ctx, http.StatusBadRequest, err.Error())
+		default:
+			return userErrorResponse(ctx, err)
+		}
 	}
 
 	return ctx.SendStatus(http.StatusNoContent)

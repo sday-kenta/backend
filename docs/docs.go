@@ -745,6 +745,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/password-reset/reset": {
+            "post": {
+                "description": "Resets password using verified code (one-time)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Reset password",
+                "operationId": "reset-password",
+                "parameters": [
+                    {
+                        "description": "Email, code and new password",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.ResetPassword"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/users/password-reset/send-code": {
             "post": {
                 "description": "Send a password reset code to email",
@@ -767,6 +811,50 @@ const docTemplate = `{
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/request.SendPasswordResetCode"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/password-reset/verify-code": {
+            "post": {
+                "description": "Checks password reset code and allows proceeding to password change page",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Verify password reset code",
+                "operationId": "verify-password-reset-code",
+                "parameters": [
+                    {
+                        "description": "Email and code",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.VerifyPasswordResetCode"
                         }
                     }
                 ],
@@ -1151,6 +1239,28 @@ const docTemplate = `{
                 }
             }
         },
+        "request.ResetPassword": {
+            "type": "object",
+            "required": [
+                "code",
+                "email",
+                "new_password"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "123456"
+                },
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                },
+                "new_password": {
+                    "type": "string",
+                    "example": "newStrongPassword123"
+                }
+            }
+        },
         "request.SendEmailVerificationCode": {
             "type": "object",
             "required": [
@@ -1287,6 +1397,23 @@ const docTemplate = `{
                         "change_email"
                     ],
                     "example": "register"
+                }
+            }
+        },
+        "request.VerifyPasswordResetCode": {
+            "type": "object",
+            "required": [
+                "code",
+                "email"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "123456"
+                },
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
                 }
             }
         },

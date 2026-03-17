@@ -30,6 +30,9 @@ type (
 		Authenticate(context.Context, string, string) (entity.User, error)
 		SendEmailVerificationCode(context.Context, string, string) error
 		VerifyEmailVerificationCode(context.Context, string, string, string) error
+		SendPasswordResetCode(context.Context, string) error
+		VerifyPasswordResetCode(context.Context, string, string) error
+		ResetPassword(context.Context, string, string, string) error
 		List(context.Context) ([]entity.User, error)
 		Update(context.Context, entity.User) (entity.User, error)
 		UpdateAvatar(context.Context, int64, string) error
