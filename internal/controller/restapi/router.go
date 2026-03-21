@@ -49,7 +49,14 @@ func NewRouter(app *fiber.App, cfg *config.Config, c usecase.Category, g usecase
 
 	apiV1Group := app.Group("/v1")
 	{
-		v1.NewCategoryRoutes(apiV1Group, c, l)
+		categoryMediaBaseURL := cfg.CDN.CategoryMediaBaseURL
+		if categoryMediaBaseURL == "" {
+			categoryMediaBaseURL = cfg.CDN.IncidentMediaBaseURL
+		}
+		if categoryMediaBaseURL == "" {
+			categoryMediaBaseURL = cfg.CDN.AvatarBaseURL
+		}
+		v1.NewCategoryRoutes(apiV1Group, c, l, categoryMediaBaseURL)
 		v1.NewGeoRoutes(apiV1Group, g, l)
 		v1.NewUserRoutes(apiV1Group, u, l, cfg.CDN.AvatarBaseURL)
 		incidentMediaBaseURL := cfg.CDN.IncidentMediaBaseURL

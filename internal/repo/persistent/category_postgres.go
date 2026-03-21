@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/sday-kenta/backend/internal/categoryerr"
@@ -33,7 +34,6 @@ func mapCategoryErr(err error) error {
 
 // GetAll -.
 func (r *CategoryRepo) GetAll(ctx context.Context) ([]entity.Category, error) {
-	// Строим SQL запрос через Squirrel
 	sql, args, err := r.Builder.
 		Select("id, title, icon_url").
 		From("categories").
@@ -43,7 +43,6 @@ func (r *CategoryRepo) GetAll(ctx context.Context) ([]entity.Category, error) {
 		return nil, fmt.Errorf("CategoryRepo - GetAll - r.Builder: %w", err)
 	}
 
-	// Выполняем запрос
 	rows, err := r.Pool.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("CategoryRepo - GetAll - r.Pool.Query: %w", err)
@@ -54,7 +53,7 @@ func (r *CategoryRepo) GetAll(ctx context.Context) ([]entity.Category, error) {
 
 	for rows.Next() {
 		var e entity.Category
-		var iconURL *string // указатель, так как в базе может быть NULL
+		var iconURL *string
 
 		err = rows.Scan(&e.ID, &e.Title, &iconURL)
 		if err != nil {
@@ -96,12 +95,17 @@ func (r *CategoryRepo) GetByID(ctx context.Context, id int) (entity.Category, er
 
 // Create -.
 func (r *CategoryRepo) Create(ctx context.Context, input entity.CreateCategoryInput) (int, error) {
-	sql, args, err := r.Builder.
+	builder := r.Builder.
 		Insert("categories").
-		Columns("title", "icon_url").
-		Values(input.Title, input.IconURL).
-		Suffix("RETURNING id").
-		ToSql()
+		Columns("title", "icon_url")
+
+	if strings.TrimSpace(input.IconURL) == "" {
+		builder = builder.Values(input.Title, nil)
+	} else {
+		builder = builder.Values(input.Title, input.IconURL)
+	}
+
+	sql, args, err := builder.Suffix("RETURNING id").ToSql()
 	if err != nil {
 		return 0, fmt.Errorf("CategoryRepo - Create - r.Builder: %w", err)
 	}
@@ -123,7 +127,12 @@ func (r *CategoryRepo) Update(ctx context.Context, id int, input entity.UpdateCa
 		builder = builder.Set("title", *input.Title)
 	}
 	if input.IconURL != nil {
-		builder = builder.Set("icon_url", *input.IconURL)
+		value := strings.TrimSpace(*input.IconURL)
+		if value == "" {
+			builder = builder.Set("icon_url", nil)
+		} else {
+			builder = builder.Set("icon_url", value)
+		}
 	}
 
 	sql, args, err := builder.ToSql()
@@ -134,6 +143,39 @@ func (r *CategoryRepo) Update(ctx context.Context, id int, input entity.UpdateCa
 	res, err := r.Pool.Exec(ctx, sql, args...)
 	if err != nil {
 		return fmt.Errorf("CategoryRepo - Update - r.Pool.Exec: %w", err)
+	}
+	if res.RowsAffected() == 0 {
+		return categoryerr.ErrNotFound
+	}
+
+	return nil
+}
+
+// UpdateIcon -.
+func (r *CategoryRepo) UpdateIcon(ctx context.Context, id int, iconURL *string) error {
+	builder := r.Builder.
+		Update("categories").
+		Where(map[string]interface{}{"id": id, "is_active": true})
+
+	if iconURL == nil {
+		builder = builder.Set("icon_url", nil)
+	} else {
+		value := strings.TrimSpace(*iconURL)
+		if value == "" {
+			builder = builder.Set("icon_url", nil)
+		} else {
+			builder = builder.Set("icon_url", value)
+		}
+	}
+
+	sql, args, err := builder.ToSql()
+	if err != nil {
+		return fmt.Errorf("CategoryRepo - UpdateIcon - r.Builder: %w", err)
+	}
+
+	res, err := r.Pool.Exec(ctx, sql, args...)
+	if err != nil {
+		return fmt.Errorf("CategoryRepo - UpdateIcon - r.Pool.Exec: %w", err)
 	}
 	if res.RowsAffected() == 0 {
 		return categoryerr.ErrNotFound

@@ -433,10 +433,7 @@ func (r *IncidentsV1) uploadIncidentPhotos(ctx *fiber.Ctx) error {
 		}
 		_ = file.Close()
 
-		photoURL := photoKey
-		if r.mediaBaseURL != "" {
-			photoURL = strings.TrimRight(r.mediaBaseURL, "/") + "/" + photoKey
-		}
+		photoURL := buildObjectURL(r.mediaBaseURL, photoKey)
 
 		photo, createErr := r.i.CreatePhoto(ctx.UserContext(), requester.UserID, requester.IsAdmin, incidentID, entity.IncidentPhoto{
 			FileKey:     photoKey,

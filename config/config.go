@@ -50,6 +50,7 @@ type (
 	CDN struct {
 		AvatarBaseURL        string `env:"AVATAR_BASE_URL" envDefault:""`
 		IncidentMediaBaseURL string `env:"INCIDENT_MEDIA_BASE_URL" envDefault:""`
+		CategoryMediaBaseURL string `env:"CATEGORY_MEDIA_BASE_URL" envDefault:""`
 	}
 
 	Geo struct {

@@ -14,6 +14,7 @@ type (
 		GetByID(ctx context.Context, id int) (entity.Category, error)
 		Create(ctx context.Context, input entity.CreateCategoryInput) (int, error)
 		Update(ctx context.Context, id int, input entity.UpdateCategoryInput) error
+		UpdateIcon(ctx context.Context, id int, iconURL *string) error
 		Delete(ctx context.Context, id int) error
 	}
 
