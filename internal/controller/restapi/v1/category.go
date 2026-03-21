@@ -3,12 +3,25 @@
 package v1
 
 import (
+	"errors"
 	"net/http"
 
+	"github.com/gofiber/fiber/v2"
+	"github.com/sday-kenta/backend/internal/categoryerr"
 	"github.com/sday-kenta/backend/internal/controller/restapi/v1/request"
 	"github.com/sday-kenta/backend/internal/entity"
-	"github.com/gofiber/fiber/v2"
 )
+
+func categoryErrorResponse(ctx *fiber.Ctx, err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, categoryerr.ErrNotFound):
+		return errorResponse(ctx, http.StatusNotFound, "category not found")
+	default:
+		return errorResponse(ctx, http.StatusInternalServerError, "database problems")
+	}
+}
 
 // requireAdmin - middleware для проверки прав администратора
 func (r *V1) requireAdmin(ctx *fiber.Ctx) error {
@@ -58,7 +71,8 @@ func (r *V1) getCategoryByID(ctx *fiber.Ctx) error {
 
 	category, err := r.c.GetByID(ctx.UserContext(), id)
 	if err != nil {
-		return errorResponse(ctx, http.StatusNotFound, "category not found")
+		r.l.Error(err, "restapi - v1 - getCategoryByID")
+		return categoryErrorResponse(ctx, err)
 	}
 
 	return ctx.Status(http.StatusOK).JSON(fiber.Map{"status": "success", "data": category})
@@ -115,6 +129,7 @@ func (r *V1) createCategory(ctx *fiber.Ctx) error {
 // @Success     200 {object} entity.Category "Updated category"
 // @Failure     400 {object} response.Error "Invalid ID or request body"
 // @Failure     403 {object} response.Error "Access denied"
+// @Failure     404 {object} response.Error "Category not found"
 // @Failure     500 {object} response.Error
 // @Router      /categories/{id} [patch]
 func (r *V1) updateCategory(ctx *fiber.Ctx) error {
@@ -135,7 +150,7 @@ func (r *V1) updateCategory(ctx *fiber.Ctx) error {
 	})
 	if err != nil {
 		r.l.Error(err, "restapi - v1 - updateCategory - Update")
-		return errorResponse(ctx, http.StatusInternalServerError, "database problems")
+		return categoryErrorResponse(ctx, err)
 	}
 
 	return ctx.Status(http.StatusOK).JSON(fiber.Map{"status": "success", "data": category})
@@ -152,6 +167,7 @@ func (r *V1) updateCategory(ctx *fiber.Ctx) error {
 // @Success     200 {object} map[string]interface{} "Success message"
 // @Failure     400 {object} response.Error "Invalid ID format"
 // @Failure     403 {object} response.Error "Access denied"
+// @Failure     404 {object} response.Error "Category not found"
 // @Failure     500 {object} response.Error
 // @Router      /categories/{id} [delete]
 func (r *V1) deleteCategory(ctx *fiber.Ctx) error {
@@ -163,7 +179,7 @@ func (r *V1) deleteCategory(ctx *fiber.Ctx) error {
 	err = r.c.Delete(ctx.UserContext(), id)
 	if err != nil {
 		r.l.Error(err, "restapi - v1 - deleteCategory - Delete")
-		return errorResponse(ctx, http.StatusInternalServerError, "database problems")
+		return categoryErrorResponse(ctx, err)
 	}
 
 	return ctx.Status(http.StatusOK).JSON(fiber.Map{"status": "success", "message": "category deleted successfully"})

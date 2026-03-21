@@ -4,8 +4,11 @@ package persistent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/sday-kenta/backend/internal/categoryerr"
 	"github.com/sday-kenta/backend/internal/entity"
 	"github.com/sday-kenta/backend/pkg/postgres"
 )
@@ -18,6 +21,14 @@ type CategoryRepo struct {
 // NewCategoryRepo -.
 func NewCategoryRepo(pg *postgres.Postgres) *CategoryRepo {
 	return &CategoryRepo{pg}
+}
+
+func mapCategoryErr(err error) error {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return categoryerr.ErrNotFound
+	}
+
+	return err
 }
 
 // GetAll -.
@@ -74,7 +85,7 @@ func (r *CategoryRepo) GetByID(ctx context.Context, id int) (entity.Category, er
 	var iconURL *string
 	err = r.Pool.QueryRow(ctx, sql, args...).Scan(&e.ID, &e.Title, &iconURL)
 	if err != nil {
-		return entity.Category{}, fmt.Errorf("CategoryRepo - GetByID - r.Pool.QueryRow: %w", err)
+		return entity.Category{}, mapCategoryErr(err)
 	}
 	if iconURL != nil {
 		e.IconURL = *iconURL
@@ -120,9 +131,12 @@ func (r *CategoryRepo) Update(ctx context.Context, id int, input entity.UpdateCa
 		return fmt.Errorf("CategoryRepo - Update - r.Builder: %w", err)
 	}
 
-	_, err = r.Pool.Exec(ctx, sql, args...)
+	res, err := r.Pool.Exec(ctx, sql, args...)
 	if err != nil {
 		return fmt.Errorf("CategoryRepo - Update - r.Pool.Exec: %w", err)
+	}
+	if res.RowsAffected() == 0 {
+		return categoryerr.ErrNotFound
 	}
 
 	return nil
@@ -139,9 +153,12 @@ func (r *CategoryRepo) Delete(ctx context.Context, id int) error {
 		return fmt.Errorf("CategoryRepo - Delete - r.Builder: %w", err)
 	}
 
-	_, err = r.Pool.Exec(ctx, sql, args...)
+	res, err := r.Pool.Exec(ctx, sql, args...)
 	if err != nil {
 		return fmt.Errorf("CategoryRepo - Delete - r.Pool.Exec: %w", err)
+	}
+	if res.RowsAffected() == 0 {
+		return categoryerr.ErrNotFound
 	}
 
 	return nil

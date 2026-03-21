@@ -587,6 +587,10 @@ paths:
           description: Access denied
           schema:
             $ref: '#/definitions/response.Error'
+        "404":
+          description: Category not found
+          schema:
+            $ref: '#/definitions/response.Error'
         "500":
           description: Internal Server Error
           schema:
@@ -663,6 +667,10 @@ paths:
             $ref: '#/definitions/response.Error'
         "403":
           description: Access denied
+          schema:
+            $ref: '#/definitions/response.Error'
+        "404":
+          description: Category not found
           schema:
             $ref: '#/definitions/response.Error'
         "500":
@@ -794,8 +802,8 @@ paths:
     get:
       consumes:
       - application/json
-      description: Возвращает детальную карточку инцидента. Черновик доступен только
-        автору или администратору.
+      description: Возвращает детальную карточку инцидента. Доступно только автору
+        инцидента или администратору.
       operationId: get-incident
       parameters:
       - description: ID инцидента
@@ -806,6 +814,7 @@ paths:
       - description: ID текущего пользователя
         in: header
         name: X-User-ID
+        required: true
         type: integer
       - default: user
         description: Роль текущего пользователя

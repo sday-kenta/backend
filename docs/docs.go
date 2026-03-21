@@ -266,6 +266,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Error"
                         }
                     },
+                    "404": {
+                        "description": "Category not found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -328,6 +334,12 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Access denied",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Category not found",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }
@@ -448,7 +460,7 @@ const docTemplate = `{
         },
         "/incidents/{id}": {
             "get": {
-                "description": "Возвращает детальную карточку инцидента. Черновик доступен только автору или администратору.",
+                "description": "Возвращает детальную карточку инцидента. Доступно только автору инцидента или администратору.",
                 "consumes": [
                     "application/json"
                 ],
@@ -472,7 +484,8 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "ID текущего пользователя",
                         "name": "X-User-ID",
-                        "in": "header"
+                        "in": "header",
+                        "required": true
                     },
                     {
                         "type": "string",
