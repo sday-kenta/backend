@@ -25,8 +25,36 @@ func New(r repo.UserRepo) *UseCase {
 	}
 }
 
+// normalizePhone extracts digits and normalizes to format +7 (XXX) XXX-XX-XX.
+// Accepts: 79991234567, 89991234567 (→7999...), 9991234567 (→7999...), +7 (999) 123-45-67.
+// Returns normalized digits (e.g. "79997777777") or error.
+func normalizePhone(phone *string) error {
+	var digits []byte
+	for _, r := range *phone {
+		if r >= '0' && r <= '9' {
+			digits = append(digits, byte(r))
+		}
+	}
+	s := string(digits)
+	switch {
+	case len(s) == 11 && s[0] == '7':
+		// already ok
+	case len(s) == 11 && s[0] == '8':
+		s = "7" + s[1:]
+	case len(s) == 10 && s[0] == '9':
+		s = "7" + s
+	default:
+		return usererr.ErrInvalidPhone
+	}
+	*phone = s
+	return nil
+}
+
 // Create creates a new user with hashed password.
 func (uc *UseCase) Create(ctx context.Context, u entity.User, password string) (entity.User, error) {
+	if err := normalizePhone(&u.Phone); err != nil {
+		return entity.User{}, err
+	}
 	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return entity.User{}, fmt.Errorf("UserUseCase - Create - bcrypt.GenerateFromPassword: %w", err)
@@ -135,6 +163,9 @@ func (uc *UseCase) List(ctx context.Context) ([]entity.User, error) {
 
 // Update updates user fields (without changing password).
 func (uc *UseCase) Update(ctx context.Context, u entity.User) (entity.User, error) {
+	if err := normalizePhone(&u.Phone); err != nil {
+		return entity.User{}, err
+	}
 	if err := uc.repo.Update(ctx, &u); err != nil {
 		return entity.User{}, err
 	}

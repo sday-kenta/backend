@@ -32,6 +32,8 @@ func userErrorResponse(ctx *fiber.Ctx, err error) error {
 		return errorResponse(ctx, http.StatusConflict, "phone already exists")
 	case errors.Is(err, usererr.ErrInvalidRole):
 		return errorResponse(ctx, http.StatusBadRequest, "invalid role")
+	case errors.Is(err, usererr.ErrInvalidPhone):
+		return errorResponse(ctx, http.StatusBadRequest, err.Error())
 	default:
 		return errorResponse(ctx, http.StatusInternalServerError, "database error")
 	}

@@ -11,5 +11,6 @@ var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrUserBlocked        = errors.New("user is blocked")
 	ErrInvalidCode        = errors.New("invalid code")
-	ErrCodeExpired        = errors.New("code expired")
+	ErrCodeExpired   = errors.New("code expired")
+	ErrInvalidPhone  = errors.New("phone must be in format +7 (XXX) XXX-XX-XX (11 digits only)")
 )
