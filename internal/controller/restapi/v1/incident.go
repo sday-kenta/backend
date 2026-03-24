@@ -80,6 +80,10 @@ func incidentErrorResponse(ctx *fiber.Ctx, err error) error {
 		return errorResponse(ctx, http.StatusBadRequest, "category not found")
 	case errors.Is(err, incidenterr.ErrDocumentEmailEmpty):
 		return errorResponse(ctx, http.StatusBadRequest, "email is required")
+	case errors.Is(err, incidenterr.ErrRequesterNotFound):
+		return errorResponse(ctx, http.StatusForbidden, "requester not found")
+	case errors.Is(err, entity.ErrOutOfAllowedZone):
+		return errorResponse(ctx, http.StatusUnprocessableEntity, err.Error())
 	default:
 		return errorResponse(ctx, http.StatusInternalServerError, "internal server error")
 	}
@@ -215,13 +219,13 @@ func (r *IncidentsV1) listMyIncidents(ctx *fiber.Ctx) error {
 }
 
 // @Summary     Получить инцидент по ID
-// @Description Возвращает детальную карточку инцидента. Черновик доступен только автору или администратору.
+// @Description Возвращает детальную карточку инцидента. Доступно только автору инцидента или администратору.
 // @ID          get-incident
 // @Tags        incidents
 // @Accept      json
 // @Produce     json
 // @Param       id path int true "ID инцидента"
-// @Param       X-User-ID header int false "ID текущего пользователя"
+// @Param       X-User-ID header int true "ID текущего пользователя"
 // @Param       X-User-Role header string false "Роль текущего пользователя" default(user)
 // @Success     200 {object} response.Incident
 // @Failure     400 {object} response.Error
@@ -235,18 +239,15 @@ func (r *IncidentsV1) getIncident(ctx *fiber.Ctx) error {
 		return errorResponse(ctx, http.StatusBadRequest, "invalid id")
 	}
 
-	requester, err := requesterFromCtx(ctx)
+	requester, err := requireRequester(ctx)
 	if err != nil {
 		return errorResponse(ctx, http.StatusBadRequest, err.Error())
 	}
 
-	incident, err := r.i.GetByID(ctx.UserContext(), id)
+	incident, err := r.i.GetByID(ctx.UserContext(), requester.UserID, requester.IsAdmin, id)
 	if err != nil {
 		r.l.Error(err, "restapi - v1 - getIncident")
 		return incidentErrorResponse(ctx, err)
-	}
-	if incident.Status == entity.IncidentStatusDraft && !(requester.IsAdmin || (requester.HasUser && requester.UserID == incident.UserID)) {
-		return errorResponse(ctx, http.StatusForbidden, "draft incident is available only to its author")
 	}
 
 	return ctx.Status(http.StatusOK).JSON(toIncidentResponse(incident))
@@ -380,6 +381,10 @@ func (r *IncidentsV1) uploadIncidentPhotos(ctx *fiber.Ctx) error {
 	if err != nil {
 		return errorResponse(ctx, http.StatusBadRequest, err.Error())
 	}
+	if _, err = r.i.GetByID(ctx.UserContext(), requester.UserID, requester.IsAdmin, incidentID); err != nil {
+		r.l.Error(err, "restapi - v1 - uploadIncidentPhotos - GetByID")
+		return incidentErrorResponse(ctx, err)
+	}
 
 	form, err := ctx.MultipartForm()
 	if err != nil {
@@ -428,10 +433,7 @@ func (r *IncidentsV1) uploadIncidentPhotos(ctx *fiber.Ctx) error {
 		}
 		_ = file.Close()
 
-		photoURL := photoKey
-		if r.mediaBaseURL != "" {
-			photoURL = strings.TrimRight(r.mediaBaseURL, "/") + "/" + photoKey
-		}
+		photoURL := buildObjectURL(r.mediaBaseURL, photoKey)
 
 		photo, createErr := r.i.CreatePhoto(ctx.UserContext(), requester.UserID, requester.IsAdmin, incidentID, entity.IncidentPhoto{
 			FileKey:     photoKey,

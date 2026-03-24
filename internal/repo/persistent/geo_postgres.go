@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/Masterminds/squirrel"
+	"github.com/jackc/pgx/v5"
 	"github.com/sday-kenta/backend/internal/entity"
 	"github.com/sday-kenta/backend/pkg/postgres"
-	"github.com/jackc/pgx/v5"
 )
 
 // GeoRepo persists cached addresses and validates project area via PostGIS.

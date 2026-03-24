@@ -1,14 +1,19 @@
 package v1
 
 import (
-	"github.com/sday-kenta/backend/internal/usecase"
-	"github.com/sday-kenta/backend/pkg/logger"
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	"github.com/sday-kenta/backend/internal/usecase"
+	"github.com/sday-kenta/backend/pkg/logger"
 )
 
-func NewCategoryRoutes(apiV1Group fiber.Router, c usecase.Category, l logger.Interface) {
-	r := &V1{c: c, l: l, v: validator.New(validator.WithRequiredStructEnabled())}
+func NewCategoryRoutes(apiV1Group fiber.Router, c usecase.Category, l logger.Interface, categoryMediaBaseURL string) {
+	r := &V1{
+		c:                    c,
+		l:                    l,
+		v:                    validator.New(validator.WithRequiredStructEnabled()),
+		categoryMediaBaseURL: categoryMediaBaseURL,
+	}
 
 	categoryGroup := apiV1Group.Group("/categories")
 	{
@@ -16,6 +21,8 @@ func NewCategoryRoutes(apiV1Group fiber.Router, c usecase.Category, l logger.Int
 		categoryGroup.Get("/:id", r.getCategoryByID)
 		categoryGroup.Post("", r.requireAdmin, r.createCategory)
 		categoryGroup.Patch("/:id", r.requireAdmin, r.updateCategory)
+		categoryGroup.Post("/:id/icon", r.requireAdmin, r.uploadCategoryIcon)
+		categoryGroup.Delete("/:id/icon", r.requireAdmin, r.deleteCategoryIcon)
 		categoryGroup.Delete("/:id", r.requireAdmin, r.deleteCategory)
 	}
 }

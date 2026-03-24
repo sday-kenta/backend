@@ -76,7 +76,7 @@ const docTemplate = `{
         },
         "/categories": {
             "get": {
-                "description": "Returns a list of all active categories (rubrics)",
+                "description": "Returns all active categories. Category icon URLs are returned in the icon_url field when an icon is uploaded.",
                 "consumes": [
                     "application/json"
                 ],
@@ -86,16 +86,14 @@ const docTemplate = `{
                 "tags": [
                     "categories"
                 ],
-                "summary": "Get all categories",
-                "operationId": "get-categories",
+                "summary": "List categories",
+                "operationId": "list-categories",
                 "responses": {
                     "200": {
-                        "description": "List of categories",
+                        "description": "status + categories list",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/entity.Category"
-                            }
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "500": {
@@ -107,7 +105,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Creates a new category (Admin only)",
+                "description": "Creates a new category. Category icons are uploaded separately via multipart/form-data endpoint.",
                 "consumes": [
                     "application/json"
                 ],
@@ -117,19 +115,19 @@ const docTemplate = `{
                 "tags": [
                     "categories"
                 ],
-                "summary": "Create a new category",
+                "summary": "Create a category",
                 "operationId": "create-category",
                 "parameters": [
                     {
                         "type": "string",
                         "default": "admin",
-                        "description": "User role (must be 'admin')",
+                        "description": "User role (must be admin)",
                         "name": "X-User-Role",
                         "in": "header",
                         "required": true
                     },
                     {
-                        "description": "Data for new category",
+                        "description": "Category payload",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -140,9 +138,10 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created category",
+                        "description": "status + created category",
                         "schema": {
-                            "$ref": "#/definitions/entity.Category"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "400": {
@@ -168,7 +167,7 @@ const docTemplate = `{
         },
         "/categories/{id}": {
             "get": {
-                "description": "Returns a single active category by its ID",
+                "description": "Returns a single active category by its ID, including icon_url when an icon is uploaded.",
                 "consumes": [
                     "application/json"
                 ],
@@ -191,9 +190,10 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Single category",
+                        "description": "status + category",
                         "schema": {
-                            "$ref": "#/definitions/entity.Category"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "400": {
@@ -217,7 +217,7 @@ const docTemplate = `{
                 }
             },
             "delete": {
-                "description": "Soft-deletes a category by ID (Admin only)",
+                "description": "Soft-deletes a category by ID. Admin only.",
                 "consumes": [
                     "application/json"
                 ],
@@ -240,7 +240,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "default": "admin",
-                        "description": "User role (must be 'admin')",
+                        "description": "User role (must be admin)",
                         "name": "X-User-Role",
                         "in": "header",
                         "required": true
@@ -266,6 +266,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Error"
                         }
                     },
+                    "404": {
+                        "description": "Category not found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -275,7 +281,7 @@ const docTemplate = `{
                 }
             },
             "patch": {
-                "description": "Partially updates a category by ID (Admin only)",
+                "description": "Partially updates a category by ID. Category icons are managed via dedicated upload/delete endpoints.",
                 "consumes": [
                     "application/json"
                 ],
@@ -298,13 +304,13 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "default": "admin",
-                        "description": "User role (must be 'admin')",
+                        "description": "User role (must be admin)",
                         "name": "X-User-Role",
                         "in": "header",
                         "required": true
                     },
                     {
-                        "description": "Data to update",
+                        "description": "Category fields to update",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -315,9 +321,10 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Updated category",
+                        "description": "status + updated category",
                         "schema": {
-                            "$ref": "#/definitions/entity.Category"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "400": {
@@ -328,6 +335,145 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Access denied",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Category not found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/categories/{id}/icon": {
+            "post": {
+                "description": "Uploads a category icon to MinIO/S3 and stores its public URL in icon_url. Accepts PNG/JPG up to 2MB. Admin only.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "categories"
+                ],
+                "summary": "Upload category icon",
+                "operationId": "upload-category-icon",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Category ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "admin",
+                        "description": "User role (must be admin)",
+                        "name": "X-User-Role",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Category icon (PNG/JPG, max 2MB)",
+                        "name": "icon",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "status + updated category",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Deletes a category icon from MinIO/S3 and clears icon_url. Admin only.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "categories"
+                ],
+                "summary": "Delete category icon",
+                "operationId": "delete-category-icon",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Category ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "admin",
+                        "description": "User role (must be admin)",
+                        "name": "X-User-Role",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }
@@ -448,7 +594,7 @@ const docTemplate = `{
         },
         "/incidents/{id}": {
             "get": {
-                "description": "Возвращает детальную карточку инцидента. Черновик доступен только автору или администратору.",
+                "description": "Возвращает детальную карточку инцидента. Доступно только автору инцидента или администратору.",
                 "consumes": [
                     "application/json"
                 ],
@@ -472,7 +618,8 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "ID текущего пользователя",
                         "name": "X-User-ID",
-                        "in": "header"
+                        "in": "header",
+                        "required": true
                     },
                     {
                         "type": "string",
@@ -1738,20 +1885,6 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "entity.Category": {
-            "type": "object",
-            "properties": {
-                "icon_url": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
         "entity.User": {
             "type": "object",
             "properties": {
@@ -1813,9 +1946,6 @@ const docTemplate = `{
                 "title"
             ],
             "properties": {
-                "icon_url": {
-                    "type": "string"
-                },
                 "title": {
                     "type": "string"
                 }
@@ -2017,9 +2147,6 @@ const docTemplate = `{
         "request.UpdateCategory": {
             "type": "object",
             "properties": {
-                "icon_url": {
-                    "type": "string"
-                },
                 "title": {
                     "type": "string"
                 }

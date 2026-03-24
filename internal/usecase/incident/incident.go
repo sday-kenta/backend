@@ -3,6 +3,7 @@ package incident
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"html/template"
 	"strings"
@@ -20,15 +21,21 @@ type UseCase struct {
 	repo         repo.IncidentRepo
 	userRepo     repo.UserRepo
 	categoryRepo repo.CategoryRepo
+	geoRepo      repo.GeoRepo
 }
 
 // New creates incident use case.
-func New(r repo.IncidentRepo, userRepo repo.UserRepo, categoryRepo repo.CategoryRepo) *UseCase {
-	return &UseCase{repo: r, userRepo: userRepo, categoryRepo: categoryRepo}
+func New(r repo.IncidentRepo, userRepo repo.UserRepo, categoryRepo repo.CategoryRepo, geoRepo repo.GeoRepo) *UseCase {
+	return &UseCase{repo: r, userRepo: userRepo, categoryRepo: categoryRepo, geoRepo: geoRepo}
 }
 
 // Create creates a new incident and snapshots reporter data for document generation.
 func (uc *UseCase) Create(ctx context.Context, userID int64, input entity.CreateIncidentInput) (entity.Incident, error) {
+	user, err := uc.ensureRequesterExists(ctx, userID)
+	if err != nil {
+		return entity.Incident{}, err
+	}
+
 	status, err := normalizeStatus(input.Status)
 	if err != nil {
 		return entity.Incident{}, err
@@ -38,12 +45,7 @@ func (uc *UseCase) Create(ctx context.Context, userID int64, input entity.Create
 	if err != nil {
 		return entity.Incident{}, err
 	}
-
-	user, err := uc.userRepo.GetByID(ctx, userID)
-	if err != nil {
-		if err == usererr.ErrNotFound {
-			return entity.Incident{}, incidenterr.ErrForbidden
-		}
+	if err = uc.validatePointAllowed(ctx, preparedLocation.Latitude, preparedLocation.Longitude, input.Latitude != nil && input.Longitude != nil); err != nil {
 		return entity.Incident{}, err
 	}
 
@@ -97,9 +99,16 @@ func (uc *UseCase) List(ctx context.Context, filter entity.IncidentFilter) ([]en
 }
 
 // GetByID returns incident by ID.
-func (uc *UseCase) GetByID(ctx context.Context, id int64) (entity.Incident, error) {
+func (uc *UseCase) GetByID(ctx context.Context, requesterID int64, isAdmin bool, id int64) (entity.Incident, error) {
+	if _, err := uc.ensureRequesterExists(ctx, requesterID); err != nil {
+		return entity.Incident{}, err
+	}
+
 	incident, err := uc.repo.GetByID(ctx, id)
 	if err != nil {
+		return entity.Incident{}, err
+	}
+	if err = ensureCanView(incident, requesterID, isAdmin); err != nil {
 		return entity.Incident{}, err
 	}
 
@@ -108,6 +117,10 @@ func (uc *UseCase) GetByID(ctx context.Context, id int64) (entity.Incident, erro
 
 // Update updates incident if requester is owner or admin.
 func (uc *UseCase) Update(ctx context.Context, requesterID int64, isAdmin bool, id int64, input entity.UpdateIncidentInput) (entity.Incident, error) {
+	if _, err := uc.ensureRequesterExists(ctx, requesterID); err != nil {
+		return entity.Incident{}, err
+	}
+
 	incident, err := uc.repo.GetByID(ctx, id)
 	if err != nil {
 		return entity.Incident{}, err
@@ -177,6 +190,10 @@ func (uc *UseCase) Update(ctx context.Context, requesterID int64, isAdmin bool, 
 	if err != nil {
 		return entity.Incident{}, err
 	}
+	hasCoordinates := input.Latitude != nil || input.Longitude != nil || incident.Latitude != 0 || incident.Longitude != 0
+	if err = uc.validatePointAllowed(ctx, preparedLocation.Latitude, preparedLocation.Longitude, hasCoordinates); err != nil {
+		return entity.Incident{}, err
+	}
 	incident.City = preparedLocation.City
 	incident.Street = preparedLocation.Street
 	incident.House = preparedLocation.House
@@ -193,6 +210,10 @@ func (uc *UseCase) Update(ctx context.Context, requesterID int64, isAdmin bool, 
 
 // Delete removes incident and returns photo metadata for best-effort storage cleanup.
 func (uc *UseCase) Delete(ctx context.Context, requesterID int64, isAdmin bool, id int64) ([]entity.IncidentPhoto, error) {
+	if _, err := uc.ensureRequesterExists(ctx, requesterID); err != nil {
+		return nil, err
+	}
+
 	incident, err := uc.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -211,6 +232,10 @@ func (uc *UseCase) Delete(ctx context.Context, requesterID int64, isAdmin bool, 
 
 // CreatePhoto adds a photo to incident.
 func (uc *UseCase) CreatePhoto(ctx context.Context, requesterID int64, isAdmin bool, incidentID int64, photo entity.IncidentPhoto) (entity.IncidentPhoto, error) {
+	if _, err := uc.ensureRequesterExists(ctx, requesterID); err != nil {
+		return entity.IncidentPhoto{}, err
+	}
+
 	incident, err := uc.repo.GetByID(ctx, incidentID)
 	if err != nil {
 		return entity.IncidentPhoto{}, err
@@ -230,6 +255,10 @@ func (uc *UseCase) CreatePhoto(ctx context.Context, requesterID int64, isAdmin b
 
 // DeletePhoto deletes a photo from incident and returns metadata for storage cleanup.
 func (uc *UseCase) DeletePhoto(ctx context.Context, requesterID int64, isAdmin bool, incidentID, photoID int64) (entity.IncidentPhoto, error) {
+	if _, err := uc.ensureRequesterExists(ctx, requesterID); err != nil {
+		return entity.IncidentPhoto{}, err
+	}
+
 	incident, err := uc.repo.GetByID(ctx, incidentID)
 	if err != nil {
 		return entity.IncidentPhoto{}, err
@@ -248,6 +277,10 @@ func (uc *UseCase) DeletePhoto(ctx context.Context, requesterID int64, isAdmin b
 
 // RenderDocument builds an HTML document suitable for download or print.
 func (uc *UseCase) RenderDocument(ctx context.Context, requesterID int64, isAdmin bool, incidentID int64) (entity.IncidentDocument, error) {
+	if _, err := uc.ensureRequesterExists(ctx, requesterID); err != nil {
+		return entity.IncidentDocument{}, err
+	}
+
 	incident, err := uc.repo.GetByID(ctx, incidentID)
 	if err != nil {
 		return entity.IncidentDocument{}, err
@@ -298,6 +331,34 @@ func (uc *UseCase) SendDocumentByEmail(ctx context.Context, requesterID int64, i
 		"text/html; charset=utf-8",
 	); err != nil {
 		return fmt.Errorf("IncidentUseCase - SendDocumentByEmail - mailsender.SendMailWithAttachment: %w", err)
+	}
+
+	return nil
+}
+
+func (uc *UseCase) ensureRequesterExists(ctx context.Context, requesterID int64) (entity.User, error) {
+	user, err := uc.userRepo.GetByID(ctx, requesterID)
+	if err != nil {
+		if errors.Is(err, usererr.ErrNotFound) {
+			return entity.User{}, incidenterr.ErrRequesterNotFound
+		}
+		return entity.User{}, fmt.Errorf("IncidentUseCase - ensureRequesterExists - uc.userRepo.GetByID: %w", err)
+	}
+
+	return user, nil
+}
+
+func (uc *UseCase) validatePointAllowed(ctx context.Context, lat, lon float64, hasCoordinates bool) error {
+	if !hasCoordinates || uc.geoRepo == nil {
+		return nil
+	}
+
+	_, err := uc.geoRepo.FindContainingZone(ctx, lat, lon)
+	if err != nil {
+		if errors.Is(err, entity.ErrZoneNotFound) {
+			return entity.ErrOutOfAllowedZone
+		}
+		return fmt.Errorf("IncidentUseCase - validatePointAllowed - uc.geoRepo.FindContainingZone: %w", err)
 	}
 
 	return nil
@@ -366,6 +427,10 @@ func ensureCanManage(incident entity.Incident, requesterID int64, isAdmin bool) 
 		return incidenterr.ErrForbidden
 	}
 	return nil
+}
+
+func ensureCanView(incident entity.Incident, requesterID int64, isAdmin bool) error {
+	return ensureCanManage(incident, requesterID, isAdmin)
 }
 
 func deriveDepartment(categoryTitle string) string {

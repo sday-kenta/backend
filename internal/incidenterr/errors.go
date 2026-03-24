@@ -11,4 +11,5 @@ var (
 	ErrLocationRequired   = errors.New("address or coordinates are required")
 	ErrCategoryNotFound   = errors.New("category not found")
 	ErrDocumentEmailEmpty = errors.New("email is required")
+	ErrRequesterNotFound  = errors.New("requester not found")
 )

@@ -32,6 +32,8 @@ func userErrorResponse(ctx *fiber.Ctx, err error) error {
 		return errorResponse(ctx, http.StatusConflict, "phone already exists")
 	case errors.Is(err, usererr.ErrInvalidRole):
 		return errorResponse(ctx, http.StatusBadRequest, "invalid role")
+	case errors.Is(err, usererr.ErrInvalidPhone):
+		return errorResponse(ctx, http.StatusBadRequest, err.Error())
 	default:
 		return errorResponse(ctx, http.StatusInternalServerError, "database error")
 	}
@@ -313,11 +315,7 @@ func (r *UsersV1) uploadAvatar(ctx *fiber.Ctx) error {
 		return errorResponse(ctx, http.StatusInternalServerError, "failed to upload avatar")
 	}
 
-	avatarValue := avatarKey
-	if r.avatarBaseURL != "" {
-		base := strings.TrimRight(r.avatarBaseURL, "/")
-		avatarValue = fmt.Sprintf("%s/%s", base, avatarKey)
-	}
+	avatarValue := buildObjectURL(r.avatarBaseURL, avatarKey)
 
 	if err = r.u.UpdateAvatar(ctx.UserContext(), id, avatarValue); err != nil {
 		r.l.Error(err, "restapi - v1 - uploadAvatar")

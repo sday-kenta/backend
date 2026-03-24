@@ -22,7 +22,7 @@ func New(r repo.CategoryRepo) *UseCase {
 	}
 }
 
-// GetAll - получение списка активных рубрик
+// GetAll - получение списка активных рубрик.
 func (uc *UseCase) GetAll(ctx context.Context) ([]entity.Category, error) {
 	categories, err := uc.repo.GetAll(ctx)
 	if err != nil {
@@ -55,6 +55,24 @@ func (uc *UseCase) Update(ctx context.Context, id int, input entity.UpdateCatego
 	if err != nil {
 		return entity.Category{}, fmt.Errorf("CategoryUseCase - Update - uc.repo.Update: %w", err)
 	}
+	return uc.GetByID(ctx, id)
+}
+
+// UpdateIcon stores a public icon URL for a category.
+func (uc *UseCase) UpdateIcon(ctx context.Context, id int, iconURL string) (entity.Category, error) {
+	if err := uc.repo.UpdateIcon(ctx, id, &iconURL); err != nil {
+		return entity.Category{}, fmt.Errorf("CategoryUseCase - UpdateIcon - uc.repo.UpdateIcon: %w", err)
+	}
+
+	return uc.GetByID(ctx, id)
+}
+
+// DeleteIcon clears a stored icon URL for a category.
+func (uc *UseCase) DeleteIcon(ctx context.Context, id int) (entity.Category, error) {
+	if err := uc.repo.UpdateIcon(ctx, id, nil); err != nil {
+		return entity.Category{}, fmt.Errorf("CategoryUseCase - DeleteIcon - uc.repo.UpdateIcon: %w", err)
+	}
+
 	return uc.GetByID(ctx, id)
 }
 

@@ -3,14 +3,33 @@
 package v1
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
 
+	"github.com/gofiber/fiber/v2"
+	"github.com/sday-kenta/backend/internal/categoryerr"
 	"github.com/sday-kenta/backend/internal/controller/restapi/v1/request"
 	"github.com/sday-kenta/backend/internal/entity"
-	"github.com/gofiber/fiber/v2"
+	"github.com/sday-kenta/backend/pkg/objectstorage"
 )
 
-// requireAdmin - middleware для проверки прав администратора
+func categoryErrorResponse(ctx *fiber.Ctx, err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, categoryerr.ErrNotFound):
+		return errorResponse(ctx, http.StatusNotFound, "category not found")
+	default:
+		return errorResponse(ctx, http.StatusInternalServerError, "database problems")
+	}
+}
+
+// requireAdmin - middleware для проверки прав администратора.
 func (r *V1) requireAdmin(ctx *fiber.Ctx) error {
 	role := ctx.Get("X-User-Role")
 	if role != "admin" {
@@ -19,13 +38,13 @@ func (r *V1) requireAdmin(ctx *fiber.Ctx) error {
 	return ctx.Next()
 }
 
-// @Summary     Get all categories
-// @Description Returns a list of all active categories (rubrics)
-// @ID          get-categories
-// @Tags  	    categories
+// @Summary     List categories
+// @Description Returns all active categories. Category icon URLs are returned in the icon_url field when an icon is uploaded.
+// @ID          list-categories
+// @Tags        categories
 // @Accept      json
 // @Produce     json
-// @Success     200 {array} entity.Category "List of categories"
+// @Success     200 {object} map[string]interface{} "status + categories list"
 // @Failure     500 {object} response.Error
 // @Router      /categories [get]
 func (r *V1) getCategories(ctx *fiber.Ctx) error {
@@ -39,13 +58,13 @@ func (r *V1) getCategories(ctx *fiber.Ctx) error {
 }
 
 // @Summary     Get category by ID
-// @Description Returns a single active category by its ID
+// @Description Returns a single active category by its ID, including icon_url when an icon is uploaded.
 // @ID          get-category-by-id
-// @Tags  	    categories
+// @Tags        categories
 // @Accept      json
 // @Produce     json
 // @Param       id path int true "Category ID"
-// @Success     200 {object} entity.Category "Single category"
+// @Success     200 {object} map[string]interface{} "status + category"
 // @Failure     400 {object} response.Error "Invalid ID format"
 // @Failure     404 {object} response.Error "Category not found"
 // @Failure     500 {object} response.Error
@@ -58,21 +77,22 @@ func (r *V1) getCategoryByID(ctx *fiber.Ctx) error {
 
 	category, err := r.c.GetByID(ctx.UserContext(), id)
 	if err != nil {
-		return errorResponse(ctx, http.StatusNotFound, "category not found")
+		r.l.Error(err, "restapi - v1 - getCategoryByID")
+		return categoryErrorResponse(ctx, err)
 	}
 
 	return ctx.Status(http.StatusOK).JSON(fiber.Map{"status": "success", "data": category})
 }
 
-// @Summary     Create a new category
-// @Description Creates a new category (Admin only)
+// @Summary     Create a category
+// @Description Creates a new category. Category icons are uploaded separately via multipart/form-data endpoint.
 // @ID          create-category
-// @Tags  	    categories
+// @Tags        categories
 // @Accept      json
 // @Produce     json
-// @Param       X-User-Role header string true "User role (must be 'admin')" default(admin)
-// @Param       request body request.CreateCategory true "Data for new category"
-// @Success     201 {object} entity.Category "Created category"
+// @Param       X-User-Role header string true "User role (must be admin)" default(admin)
+// @Param       request body request.CreateCategory true "Category payload"
+// @Success     201 {object} map[string]interface{} "status + created category"
 // @Failure     400 {object} response.Error "Invalid request body"
 // @Failure     403 {object} response.Error "Access denied"
 // @Failure     500 {object} response.Error
@@ -85,16 +105,12 @@ func (r *V1) createCategory(ctx *fiber.Ctx) error {
 		return errorResponse(ctx, http.StatusBadRequest, "invalid request body")
 	}
 
-	// Используем встроенный в V1 валидатор (как в translation.go)
 	if err := r.v.Struct(body); err != nil {
 		r.l.Error(err, "restapi - v1 - createCategory - Validate")
-		return errorResponse(ctx, http.StatusBadRequest, "invalid request data: title is required")
+		return errorResponse(ctx, http.StatusBadRequest, formatValidationError(err))
 	}
 
-	category, err := r.c.Create(ctx.UserContext(), entity.CreateCategoryInput{
-		Title:   body.Title,
-		IconURL: body.IconURL,
-	})
+	category, err := r.c.Create(ctx.UserContext(), entity.CreateCategoryInput{Title: body.Title})
 	if err != nil {
 		r.l.Error(err, "restapi - v1 - createCategory - Create")
 		return errorResponse(ctx, http.StatusInternalServerError, "database problems")
@@ -104,17 +120,18 @@ func (r *V1) createCategory(ctx *fiber.Ctx) error {
 }
 
 // @Summary     Update a category
-// @Description Partially updates a category by ID (Admin only)
+// @Description Partially updates a category by ID. Category icons are managed via dedicated upload/delete endpoints.
 // @ID          update-category
-// @Tags  	    categories
+// @Tags        categories
 // @Accept      json
 // @Produce     json
 // @Param       id path int true "Category ID"
-// @Param       X-User-Role header string true "User role (must be 'admin')" default(admin)
-// @Param       request body request.UpdateCategory true "Data to update"
-// @Success     200 {object} entity.Category "Updated category"
+// @Param       X-User-Role header string true "User role (must be admin)" default(admin)
+// @Param       request body request.UpdateCategory true "Category fields to update"
+// @Success     200 {object} map[string]interface{} "status + updated category"
 // @Failure     400 {object} response.Error "Invalid ID or request body"
 // @Failure     403 {object} response.Error "Access denied"
+// @Failure     404 {object} response.Error "Category not found"
 // @Failure     500 {object} response.Error
 // @Router      /categories/{id} [patch]
 func (r *V1) updateCategory(ctx *fiber.Ctx) error {
@@ -129,29 +146,156 @@ func (r *V1) updateCategory(ctx *fiber.Ctx) error {
 		return errorResponse(ctx, http.StatusBadRequest, "invalid request body")
 	}
 
-	category, err := r.c.Update(ctx.UserContext(), id, entity.UpdateCategoryInput{
-		Title:   body.Title,
-		IconURL: body.IconURL,
-	})
+	category, err := r.c.Update(ctx.UserContext(), id, entity.UpdateCategoryInput{Title: body.Title})
 	if err != nil {
 		r.l.Error(err, "restapi - v1 - updateCategory - Update")
-		return errorResponse(ctx, http.StatusInternalServerError, "database problems")
+		return categoryErrorResponse(ctx, err)
 	}
 
 	return ctx.Status(http.StatusOK).JSON(fiber.Map{"status": "success", "data": category})
 }
 
-// @Summary     Delete a category
-// @Description Soft-deletes a category by ID (Admin only)
-// @ID          delete-category
-// @Tags  	    categories
+// @Summary     Upload category icon
+// @Description Uploads a category icon to MinIO/S3 and stores its public URL in icon_url. Accepts PNG/JPG up to 2MB. Admin only.
+// @ID          upload-category-icon
+// @Tags        categories
+// @Accept      multipart/form-data
+// @Produce     json
+// @Param       id path int true "Category ID"
+// @Param       X-User-Role header string true "User role (must be admin)" default(admin)
+// @Param       icon formData file true "Category icon (PNG/JPG, max 2MB)"
+// @Success     200 {object} map[string]interface{} "status + updated category"
+// @Failure     400 {object} response.Error
+// @Failure     403 {object} response.Error
+// @Failure     404 {object} response.Error
+// @Failure     500 {object} response.Error
+// @Router      /categories/{id}/icon [post]
+func (r *V1) uploadCategoryIcon(ctx *fiber.Ctx) error {
+	id, err := strconv.Atoi(ctx.Params("id"))
+	if err != nil {
+		return errorResponse(ctx, http.StatusBadRequest, "invalid id format")
+	}
+
+	existing, err := r.c.GetByID(ctx.UserContext(), id)
+	if err != nil {
+		r.l.Error(err, "restapi - v1 - uploadCategoryIcon - GetByID")
+		return categoryErrorResponse(ctx, err)
+	}
+
+	fileHeader, err := ctx.FormFile("icon")
+	if err != nil {
+		return errorResponse(ctx, http.StatusBadRequest, "icon file is required")
+	}
+
+	const maxIconSize = 2 * 1024 * 1024
+	if fileHeader.Size > maxIconSize {
+		return errorResponse(ctx, http.StatusBadRequest, "icon file too large (max 2MB)")
+	}
+
+	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
+	switch ext {
+	case ".png", ".jpg", ".jpeg":
+	default:
+		return errorResponse(ctx, http.StatusBadRequest, "icon file must be PNG or JPG")
+	}
+
+	storage, err := objectstorage.NewFromEnv(ctx.UserContext())
+	if err != nil {
+		r.l.Error(err, "restapi - v1 - uploadCategoryIcon - NewFromEnv")
+		return errorResponse(ctx, http.StatusInternalServerError, "icon storage is not configured")
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		r.l.Error(err, "restapi - v1 - uploadCategoryIcon - FormFile.Open")
+		return errorResponse(ctx, http.StatusInternalServerError, "failed to read icon file")
+	}
+	defer func() { _ = file.Close() }()
+
+	iconKey := fmt.Sprintf("categories/%d/%d%s", id, time.Now().UnixNano(), ext)
+	contentType := fileHeader.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	if err = storage.Upload(ctx.UserContext(), iconKey, contentType, file); err != nil {
+		r.l.Error(err, "restapi - v1 - uploadCategoryIcon - Upload")
+		return errorResponse(ctx, http.StatusInternalServerError, "failed to upload icon")
+	}
+
+	category, err := r.c.UpdateIcon(ctx.UserContext(), id, buildObjectURL(r.categoryMediaBaseURL, iconKey))
+	if err != nil {
+		_ = storage.Delete(ctx.UserContext(), iconKey)
+		r.l.Error(err, "restapi - v1 - uploadCategoryIcon - UpdateIcon")
+		return categoryErrorResponse(ctx, err)
+	}
+
+	oldIconKey := objectKeyFromStoredURL(r.categoryMediaBaseURL, existing.IconURL)
+	if oldIconKey != "" && oldIconKey != iconKey {
+		if err = storage.Delete(ctx.UserContext(), oldIconKey); err != nil {
+			r.l.Error(err, "restapi - v1 - uploadCategoryIcon - DeleteOldIcon")
+		}
+	}
+
+	return ctx.Status(http.StatusOK).JSON(fiber.Map{"status": "success", "data": category})
+}
+
+// @Summary     Delete category icon
+// @Description Deletes a category icon from MinIO/S3 and clears icon_url. Admin only.
+// @ID          delete-category-icon
+// @Tags        categories
 // @Accept      json
 // @Produce     json
 // @Param       id path int true "Category ID"
-// @Param       X-User-Role header string true "User role (must be 'admin')" default(admin)
+// @Param       X-User-Role header string true "User role (must be admin)" default(admin)
+// @Success     204
+// @Failure     400 {object} response.Error
+// @Failure     403 {object} response.Error
+// @Failure     404 {object} response.Error
+// @Failure     500 {object} response.Error
+// @Router      /categories/{id}/icon [delete]
+func (r *V1) deleteCategoryIcon(ctx *fiber.Ctx) error {
+	id, err := strconv.Atoi(ctx.Params("id"))
+	if err != nil {
+		return errorResponse(ctx, http.StatusBadRequest, "invalid id format")
+	}
+
+	existing, err := r.c.GetByID(ctx.UserContext(), id)
+	if err != nil {
+		r.l.Error(err, "restapi - v1 - deleteCategoryIcon - GetByID")
+		return categoryErrorResponse(ctx, err)
+	}
+
+	if _, err = r.c.DeleteIcon(ctx.UserContext(), id); err != nil {
+		r.l.Error(err, "restapi - v1 - deleteCategoryIcon - DeleteIcon")
+		return categoryErrorResponse(ctx, err)
+	}
+
+	oldIconKey := objectKeyFromStoredURL(r.categoryMediaBaseURL, existing.IconURL)
+	if oldIconKey != "" {
+		storage, storageErr := objectstorage.NewFromEnv(ctx.UserContext())
+		if storageErr == nil {
+			if err = storage.Delete(ctx.UserContext(), oldIconKey); err != nil {
+				r.l.Error(err, "restapi - v1 - deleteCategoryIcon - DeleteObject")
+			}
+		}
+	}
+
+	return ctx.SendStatus(http.StatusNoContent)
+}
+
+// @Summary     Delete a category
+// @Description Soft-deletes a category by ID. Admin only.
+// @ID          delete-category
+// @Tags        categories
+// @Accept      json
+// @Produce     json
+// @Param       id path int true "Category ID"
+// @Param       X-User-Role header string true "User role (must be admin)" default(admin)
 // @Success     200 {object} map[string]interface{} "Success message"
 // @Failure     400 {object} response.Error "Invalid ID format"
 // @Failure     403 {object} response.Error "Access denied"
+// @Failure     404 {object} response.Error "Category not found"
 // @Failure     500 {object} response.Error
 // @Router      /categories/{id} [delete]
 func (r *V1) deleteCategory(ctx *fiber.Ctx) error {
@@ -160,10 +304,26 @@ func (r *V1) deleteCategory(ctx *fiber.Ctx) error {
 		return errorResponse(ctx, http.StatusBadRequest, "invalid id format")
 	}
 
+	existing, err := r.c.GetByID(ctx.UserContext(), id)
+	if err != nil {
+		r.l.Error(err, "restapi - v1 - deleteCategory - GetByID")
+		return categoryErrorResponse(ctx, err)
+	}
+
 	err = r.c.Delete(ctx.UserContext(), id)
 	if err != nil {
 		r.l.Error(err, "restapi - v1 - deleteCategory - Delete")
-		return errorResponse(ctx, http.StatusInternalServerError, "database problems")
+		return categoryErrorResponse(ctx, err)
+	}
+
+	oldIconKey := objectKeyFromStoredURL(r.categoryMediaBaseURL, existing.IconURL)
+	if oldIconKey != "" {
+		storage, storageErr := objectstorage.NewFromEnv(ctx.UserContext())
+		if storageErr == nil {
+			if err = storage.Delete(ctx.UserContext(), oldIconKey); err != nil {
+				r.l.Error(err, "restapi - v1 - deleteCategory - DeleteObject")
+			}
+		}
 	}
 
 	return ctx.Status(http.StatusOK).JSON(fiber.Map{"status": "success", "message": "category deleted successfully"})

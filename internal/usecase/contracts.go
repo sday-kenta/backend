@@ -14,6 +14,8 @@ type (
 		GetByID(ctx context.Context, id int) (entity.Category, error)
 		Create(ctx context.Context, input entity.CreateCategoryInput) (entity.Category, error)
 		Update(ctx context.Context, id int, input entity.UpdateCategoryInput) (entity.Category, error)
+		UpdateIcon(ctx context.Context, id int, iconURL string) (entity.Category, error)
+		DeleteIcon(ctx context.Context, id int) (entity.Category, error)
 		Delete(ctx context.Context, id int) error
 	}
 
@@ -38,7 +40,7 @@ type (
 	Incident interface {
 		Create(context.Context, int64, entity.CreateIncidentInput) (entity.Incident, error)
 		List(context.Context, entity.IncidentFilter) ([]entity.Incident, error)
-		GetByID(context.Context, int64) (entity.Incident, error)
+		GetByID(context.Context, int64, bool, int64) (entity.Incident, error)
 		Update(context.Context, int64, bool, int64, entity.UpdateIncidentInput) (entity.Incident, error)
 		Delete(context.Context, int64, bool, int64) ([]entity.IncidentPhoto, error)
 		CreatePhoto(context.Context, int64, bool, int64, entity.IncidentPhoto) (entity.IncidentPhoto, error)

@@ -48,7 +48,7 @@ func Run(cfg *config.Config) { //nolint: gocyclo,cyclop,funlen,gocritic,nolintli
 
 	userRepo := persistent.NewUserRepo(pg)
 	userUC := userUseCase.New(userRepo)
-	incidentUC := incidentUseCase.New(persistent.NewIncidentRepo(pg), userRepo, persistent.NewCategoryRepo(pg))
+	incidentUC := incidentUseCase.New(persistent.NewIncidentRepo(pg), userRepo, persistent.NewCategoryRepo(pg), geoRepo)
 
 	httpServer := httpserver.New(l, httpserver.Port(cfg.HTTP.Port), httpserver.Prefork(cfg.HTTP.UsePreforkMode))
 	restapi.NewRouter(httpServer.App, cfg, categoryUC, geoUC, userUC, incidentUC, l)
