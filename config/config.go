@@ -44,7 +44,10 @@ type (
 	}
 
 	Swagger struct {
-		Enabled bool `env:"SWAGGER_ENABLED" envDefault:"false"`
+		Enabled  bool   `env:"SWAGGER_ENABLED" envDefault:"false"`
+		Host     string `env:"SWAGGER_HOST" envDefault:""`
+		BasePath string `env:"SWAGGER_BASE_PATH" envDefault:"/v1"`
+		Schemes  string `env:"SWAGGER_SCHEMES" envDefault:""`
 	}
 
 	CDN struct {

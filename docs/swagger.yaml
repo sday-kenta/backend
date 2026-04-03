@@ -74,8 +74,9 @@ definitions:
       status:
         enum:
         - draft
+        - review
         - published
-        example: published
+        example: review
         type: string
       street:
         example: проспект Ленина
@@ -120,6 +121,7 @@ definitions:
         type: string
       password:
         example: qwerty123
+        minLength: 6
         type: string
       phone:
         example: "+79991234567"
@@ -222,8 +224,9 @@ definitions:
       status:
         enum:
         - draft
+        - review
         - published
-        example: draft
+        example: review
         type: string
       street:
         example: проспект Ленина
@@ -1400,6 +1403,7 @@ paths:
       - description: Фильтр по статусу
         enum:
         - draft
+        - review
         - published
         - all
         in: query

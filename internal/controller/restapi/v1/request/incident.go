@@ -5,7 +5,7 @@ type CreateIncident struct {
 	CategoryID     int      `json:"category_id" validate:"required" example:"1"`
 	Title          string   `json:"title" validate:"required,max=255" example:"Неправильная парковка во дворе"`
 	Description    string   `json:"description" validate:"required,max=600" example:"Автомобиль припаркован на газоне и мешает проходу."`
-	Status         string   `json:"status" validate:"omitempty,oneof=draft published" example:"published"`
+	Status         string   `json:"status" validate:"omitempty,oneof=draft review published" example:"review"`
 	DepartmentName string   `json:"department_name,omitempty" example:"ГИБДД"`
 	City           string   `json:"city,omitempty" example:"Самара"`
 	Street         string   `json:"street,omitempty" example:"проспект Ленина"`
@@ -20,7 +20,7 @@ type UpdateIncident struct {
 	CategoryID     *int     `json:"category_id,omitempty" example:"1"`
 	Title          *string  `json:"title,omitempty" validate:"omitempty,max=255" example:"Неправильная парковка во дворе"`
 	Description    *string  `json:"description,omitempty" validate:"omitempty,max=600" example:"Автомобиль припаркован на газоне и мешает проходу."`
-	Status         *string  `json:"status,omitempty" validate:"omitempty,oneof=draft published" example:"draft"`
+	Status         *string  `json:"status,omitempty" validate:"omitempty,oneof=draft review published" example:"review"`
 	DepartmentName *string  `json:"department_name,omitempty" example:"ГИБДД"`
 	City           *string  `json:"city,omitempty" example:"Самара"`
 	Street         *string  `json:"street,omitempty" example:"проспект Ленина"`

@@ -1388,6 +1388,7 @@ const docTemplate = `{
                     {
                         "enum": [
                             "draft",
+                            "review",
                             "published",
                             "all"
                         ],
@@ -1996,9 +1997,10 @@ const docTemplate = `{
                     "type": "string",
                     "enum": [
                         "draft",
+                        "review",
                         "published"
                     ],
-                    "example": "published"
+                    "example": "review"
                 },
                 "street": {
                     "type": "string",
@@ -2064,6 +2066,7 @@ const docTemplate = `{
                 },
                 "password": {
                     "type": "string",
+                    "minLength": 6,
                     "example": "qwerty123"
                 },
                 "phone": {
@@ -2192,9 +2195,10 @@ const docTemplate = `{
                     "type": "string",
                     "enum": [
                         "draft",
+                        "review",
                         "published"
                     ],
-                    "example": "draft"
+                    "example": "review"
                 },
                 "street": {
                     "type": "string",

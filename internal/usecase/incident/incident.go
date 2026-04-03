@@ -36,7 +36,7 @@ func (uc *UseCase) Create(ctx context.Context, userID int64, input entity.Create
 		return entity.Incident{}, err
 	}
 
-	status, err := normalizeStatus(input.Status)
+	status, err := normalizeCreateStatus(input.Status)
 	if err != nil {
 		return entity.Incident{}, err
 	}
@@ -148,6 +148,9 @@ func (uc *UseCase) Update(ctx context.Context, requesterID int64, isAdmin bool, 
 		status, statusErr := normalizeStatus(*input.Status)
 		if statusErr != nil {
 			return entity.Incident{}, statusErr
+		}
+		if status == entity.IncidentStatusPublished && !isAdmin {
+			return entity.Incident{}, incidenterr.ErrForbidden
 		}
 		incident.Status = status
 		if status == entity.IncidentStatusPublished {
@@ -409,14 +412,25 @@ func prepareLocation(city, street, house, addressText string, latitude, longitud
 func normalizeStatus(status string) (string, error) {
 	status = strings.TrimSpace(strings.ToLower(status))
 	if status == "" {
-		status = entity.IncidentStatusDraft
+		status = entity.IncidentStatusReview
 	}
 	switch status {
-	case entity.IncidentStatusDraft, entity.IncidentStatusPublished:
+	case entity.IncidentStatusDraft, entity.IncidentStatusReview, entity.IncidentStatusPublished:
 		return status, nil
 	default:
 		return "", incidenterr.ErrInvalidStatus
 	}
+}
+
+func normalizeCreateStatus(status string) (string, error) {
+	status, err := normalizeStatus(status)
+	if err != nil {
+		return "", err
+	}
+	if status == entity.IncidentStatusPublished {
+		return entity.IncidentStatusReview, nil
+	}
+	return status, nil
 }
 
 func ensureCanManage(incident entity.Incident, requesterID int64, isAdmin bool) error {
@@ -495,8 +509,18 @@ func renderIncidentHTML(incident entity.Incident) (string, error) {
     h1, h2 { margin-bottom: 12px; }
     .meta { margin-bottom: 24px; }
     .label { font-weight: bold; }
-    .photo { margin: 8px 0; }
-    .photo a { word-break: break-all; }
+    .photo { margin: 16px 0; page-break-inside: avoid; }
+    .photo img {
+      display: block;
+      width: 100%;
+      max-width: 720px;
+      height: 320px;
+      object-fit: contain;
+      object-position: center;
+      border: 1px solid #d9d9d9;
+      border-radius: 8px;
+      background: #f7f7f7;
+    }
     @media print { body { margin: 12mm; } }
   </style>
 </head>
@@ -522,7 +546,7 @@ func renderIncidentHTML(incident entity.Incident) (string, error) {
   {{if .Photos}}
   <h2>Фотографии</h2>
   {{range .Photos}}
-    <div class="photo"><a href="{{.FileURL}}">{{.FileURL}}</a></div>
+    <div class="photo"><img src="{{.FileURL}}" alt="Фотография инцидента"></div>
   {{end}}
   {{end}}
 

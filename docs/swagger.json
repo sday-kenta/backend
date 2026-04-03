@@ -1382,6 +1382,7 @@
                     {
                         "enum": [
                             "draft",
+                            "review",
                             "published",
                             "all"
                         ],
@@ -1990,9 +1991,10 @@
                     "type": "string",
                     "enum": [
                         "draft",
+                        "review",
                         "published"
                     ],
-                    "example": "published"
+                    "example": "review"
                 },
                 "street": {
                     "type": "string",
@@ -2058,6 +2060,7 @@
                 },
                 "password": {
                     "type": "string",
+                    "minLength": 6,
                     "example": "qwerty123"
                 },
                 "phone": {
@@ -2186,9 +2189,10 @@
                     "type": "string",
                     "enum": [
                         "draft",
+                        "review",
                         "published"
                     ],
-                    "example": "draft"
+                    "example": "review"
                 },
                 "street": {
                     "type": "string",

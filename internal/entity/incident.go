@@ -4,6 +4,7 @@ import "time"
 
 const (
 	IncidentStatusDraft     = "draft"
+	IncidentStatusReview    = "review"
 	IncidentStatusPublished = "published"
 )
 

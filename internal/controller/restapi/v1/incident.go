@@ -176,7 +176,7 @@ func (r *IncidentsV1) listIncidents(ctx *fiber.Ctx) error {
 // @Accept      json
 // @Produce     json
 // @Param       X-User-ID header int true "ID текущего пользователя"
-// @Param       status query string false "Фильтр по статусу" Enums(draft,published,all)
+// @Param       status query string false "Фильтр по статусу" Enums(draft,review,published,all)
 // @Param       category_id query int false "ID категории"
 // @Success     200 {array} response.Incident
 // @Failure     400 {object} response.Error
@@ -195,7 +195,7 @@ func (r *IncidentsV1) listMyIncidents(ctx *fiber.Ctx) error {
 	if rawStatus := strings.TrimSpace(strings.ToLower(ctx.Query("status"))); rawStatus != "" {
 		switch rawStatus {
 		case "all":
-		case entity.IncidentStatusDraft, entity.IncidentStatusPublished:
+		case entity.IncidentStatusDraft, entity.IncidentStatusReview, entity.IncidentStatusPublished:
 			status = &rawStatus
 		default:
 			return errorResponse(ctx, http.StatusBadRequest, "invalid status")
