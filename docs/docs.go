@@ -2494,7 +2494,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/v1",
 	Schemes:          []string{},
 	Title:            "Backend API",
-	Description:      "Combined users and maps service API",
+	Description:      "Service for conscientious citizens",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

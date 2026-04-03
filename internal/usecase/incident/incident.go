@@ -14,6 +14,7 @@ import (
 	"github.com/sday-kenta/backend/internal/repo"
 	"github.com/sday-kenta/backend/internal/usererr"
 	"github.com/sday-kenta/backend/pkg/mailsender"
+	"github.com/sday-kenta/backend/pkg/objectstorage"
 )
 
 // UseCase implements usecase.Incident.
@@ -292,7 +293,7 @@ func (uc *UseCase) RenderDocument(ctx context.Context, requesterID int64, isAdmi
 		return entity.IncidentDocument{}, err
 	}
 
-	html, err := renderIncidentHTML(incident)
+	html, err := renderIncidentHTML(buildIncidentDocumentView(incident))
 	if err != nil {
 		return entity.IncidentDocument{}, err
 	}
@@ -307,14 +308,28 @@ func (uc *UseCase) RenderDocument(ctx context.Context, requesterID int64, isAdmi
 
 // SendDocumentByEmail sends the generated document to the given email or to the reporter email by default.
 func (uc *UseCase) SendDocumentByEmail(ctx context.Context, requesterID int64, isAdmin bool, incidentID int64, email string) error {
-	doc, err := uc.RenderDocument(ctx, requesterID, isAdmin, incidentID)
-	if err != nil {
-		return err
-	}
-
 	incident, err := uc.repo.GetByID(ctx, incidentID)
 	if err != nil {
 		return err
+	}
+	if err = ensureCanManage(incident, requesterID, isAdmin); err != nil {
+		return err
+	}
+
+	emailDoc, err := uc.buildEmailDocument(ctx, incident)
+	if err != nil {
+		return fmt.Errorf("IncidentUseCase - SendDocumentByEmail - buildEmailDocument: %w", err)
+	}
+	html, err := renderIncidentHTML(emailDoc.View)
+	if err != nil {
+		return err
+	}
+	doc := entity.IncidentDocument{
+		FileName:          fmt.Sprintf("incident-%d.html", incident.ID),
+		ContentType:       "text/html; charset=utf-8",
+		Subject:           fmt.Sprintf("Обращение по инциденту #%d", incident.ID),
+		BodyHTML:          html,
+		InlineAttachments: emailDoc.InlineAttachments,
 	}
 
 	to := strings.TrimSpace(email)
@@ -332,11 +347,46 @@ func (uc *UseCase) SendDocumentByEmail(ctx context.Context, requesterID int64, i
 		doc.FileName,
 		[]byte(doc.BodyHTML),
 		"text/html; charset=utf-8",
+		doc.InlineAttachments,
 	); err != nil {
 		return fmt.Errorf("IncidentUseCase - SendDocumentByEmail - mailsender.SendMailWithAttachment: %w", err)
 	}
 
 	return nil
+}
+
+func (uc *UseCase) buildEmailDocument(ctx context.Context, incident entity.Incident) (emailDocumentBuildResult, error) {
+	result := emailDocumentBuildResult{View: buildIncidentDocumentView(incident)}
+	if len(incident.Photos) == 0 {
+		return result, nil
+	}
+
+	storage, err := objectstorage.NewFromEnv(ctx)
+	if err != nil {
+		return result, nil
+	}
+
+	for idx, photo := range incident.Photos {
+		if strings.TrimSpace(photo.FileKey) == "" {
+			continue
+		}
+
+		content, downloadErr := storage.Download(ctx, photo.FileKey)
+		if downloadErr != nil {
+			continue
+		}
+
+		contentID := fmt.Sprintf("incident-photo-%d-%d", incident.ID, idx+1)
+		result.View.Photos[idx].Src = template.URL("cid:" + contentID)
+		result.InlineAttachments = append(result.InlineAttachments, entity.InlineAttachment{
+			ContentID:   contentID,
+			FileName:    fmt.Sprintf("incident-%d-photo-%d", incident.ID, idx+1),
+			ContentType: normalizePhotoContentType(photo.ContentType),
+			Body:        content,
+		})
+	}
+
+	return result, nil
 }
 
 func (uc *UseCase) ensureRequesterExists(ctx context.Context, requesterID int64) (entity.User, error) {
@@ -374,6 +424,31 @@ type preparedLocation struct {
 	AddressText string
 	Latitude    float64
 	Longitude   float64
+}
+
+type incidentDocumentView struct {
+	ID               int64
+	DepartmentName   string
+	CategoryTitle    string
+	Title            string
+	AddressText      string
+	Latitude         float64
+	Longitude        float64
+	Description      string
+	ReporterFullName string
+	ReporterEmail    string
+	ReporterPhone    string
+	ReporterAddress  string
+	Photos           []incidentDocumentPhotoView
+}
+
+type incidentDocumentPhotoView struct {
+	Src template.URL
+}
+
+type emailDocumentBuildResult struct {
+	View              incidentDocumentView
+	InlineAttachments []entity.InlineAttachment
 }
 
 func prepareLocation(city, street, house, addressText string, latitude, longitude *float64) (preparedLocation, error) {
@@ -498,7 +573,39 @@ func coalesceAddress(addressText string, parts ...string) string {
 	return strings.Join(filtered, ", ")
 }
 
-func renderIncidentHTML(incident entity.Incident) (string, error) {
+func buildIncidentDocumentView(incident entity.Incident) incidentDocumentView {
+	view := incidentDocumentView{
+		ID:               incident.ID,
+		DepartmentName:   incident.DepartmentName,
+		CategoryTitle:    incident.CategoryTitle,
+		Title:            incident.Title,
+		AddressText:      incident.AddressText,
+		Latitude:         incident.Latitude,
+		Longitude:        incident.Longitude,
+		Description:      incident.Description,
+		ReporterFullName: incident.ReporterFullName,
+		ReporterEmail:    incident.ReporterEmail,
+		ReporterPhone:    incident.ReporterPhone,
+		ReporterAddress:  incident.ReporterAddress,
+		Photos:           make([]incidentDocumentPhotoView, 0, len(incident.Photos)),
+	}
+
+	for _, photo := range incident.Photos {
+		view.Photos = append(view.Photos, incidentDocumentPhotoView{Src: template.URL(photo.FileURL)})
+	}
+
+	return view
+}
+
+func normalizePhotoContentType(contentType string) string {
+	contentType = strings.TrimSpace(contentType)
+	if contentType == "" {
+		return "application/octet-stream"
+	}
+	return contentType
+}
+
+func renderIncidentHTML(doc incidentDocumentView) (string, error) {
 	const tpl = `<!doctype html>
 <html lang="ru">
 <head>
@@ -546,7 +653,7 @@ func renderIncidentHTML(incident entity.Incident) (string, error) {
   {{if .Photos}}
   <h2>Фотографии</h2>
   {{range .Photos}}
-    <div class="photo"><img src="{{.FileURL}}" alt="Фотография инцидента"></div>
+    <div class="photo"><img src="{{.Src}}" alt="Фотография инцидента"></div>
   {{end}}
   {{end}}
 
@@ -560,7 +667,7 @@ func renderIncidentHTML(incident entity.Incident) (string, error) {
 	}
 
 	var buf bytes.Buffer
-	if err = t.Execute(&buf, incident); err != nil {
+	if err = t.Execute(&buf, doc); err != nil {
 		return "", fmt.Errorf("IncidentUseCase - renderIncidentHTML - template.Execute: %w", err)
 	}
 

@@ -438,7 +438,7 @@ definitions:
 host: localhost:8080
 info:
   contact: {}
-  description: Combined users and maps service API
+  description: Service for conscientious citizens
   title: Backend API
   version: "1.0"
 paths:

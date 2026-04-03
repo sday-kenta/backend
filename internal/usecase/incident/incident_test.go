@@ -75,7 +75,7 @@ func TestUpdateNonAdminCannotPublishIncident(t *testing.T) {
 func TestRenderIncidentHTMLUsesImageTagWithoutDistortion(t *testing.T) {
 	t.Parallel()
 
-	html, err := renderIncidentHTML(entity.Incident{
+	html, err := renderIncidentHTML(buildIncidentDocumentView(entity.Incident{
 		ID:             1,
 		DepartmentName: "ГИБДД",
 		CategoryTitle:  "Парковка",
@@ -86,12 +86,19 @@ func TestRenderIncidentHTMLUsesImageTagWithoutDistortion(t *testing.T) {
 		Photos: []entity.IncidentPhoto{
 			{FileURL: "https://example.com/photo.jpg"},
 		},
-	})
+	}))
 
 	require.NoError(t, err)
 	require.Contains(t, html, `<img src="https://example.com/photo.jpg" alt="Фотография инцидента">`)
 	require.Contains(t, html, "object-fit: contain;")
 	require.NotContains(t, html, "<a href=")
+}
+
+func TestNormalizePhotoContentType(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "image/png", normalizePhotoContentType("image/png"))
+	require.Equal(t, "application/octet-stream", normalizePhotoContentType(""))
 }
 
 type incidentRepoStub struct {

@@ -1,7 +1,7 @@
 {
     "swagger": "2.0",
     "info": {
-        "description": "Combined users and maps service API",
+        "description": "Service for conscientious citizens",
         "title": "Backend API",
         "contact": {},
         "version": "1.0"
