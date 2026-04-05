@@ -2,6 +2,12 @@ package entity
 
 import "time"
 
+const (
+	UserRoleUser    = "user"
+	UserRoleAdmin   = "admin"
+	UserRolePremium = "premium"
+)
+
 // User represents an application user.
 // It is used by business logic and maps to the "users" table.
 type User struct {

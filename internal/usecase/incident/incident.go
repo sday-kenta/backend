@@ -101,8 +101,10 @@ func (uc *UseCase) List(ctx context.Context, filter entity.IncidentFilter) ([]en
 
 // GetByID returns incident by ID.
 func (uc *UseCase) GetByID(ctx context.Context, requesterID int64, isAdmin bool, id int64) (entity.Incident, error) {
-	if _, err := uc.ensureRequesterExists(ctx, requesterID); err != nil {
-		return entity.Incident{}, err
+	if requesterID != 0 {
+		if _, err := uc.ensureRequesterExists(ctx, requesterID); err != nil {
+			return entity.Incident{}, err
+		}
 	}
 
 	incident, err := uc.repo.GetByID(ctx, id)
@@ -519,6 +521,9 @@ func ensureCanManage(incident entity.Incident, requesterID int64, isAdmin bool) 
 }
 
 func ensureCanView(incident entity.Incident, requesterID int64, isAdmin bool) error {
+	if incident.Status == entity.IncidentStatusPublished {
+		return nil
+	}
 	return ensureCanManage(incident, requesterID, isAdmin)
 }
 

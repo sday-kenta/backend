@@ -13,6 +13,7 @@ import (
 	"github.com/sday-kenta/backend/internal/controller/restapi/middleware"
 	v1 "github.com/sday-kenta/backend/internal/controller/restapi/v1"
 	"github.com/sday-kenta/backend/internal/usecase"
+	"github.com/sday-kenta/backend/pkg/authjwt"
 	"github.com/sday-kenta/backend/pkg/logger"
 )
 
@@ -33,7 +34,7 @@ func NewRouter(app *fiber.App, cfg *config.Config, c usecase.Category, g usecase
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
 		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-User-Role, X-User-ID",
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
 	}))
 
 	if cfg.Metrics.Enabled {
@@ -44,12 +45,17 @@ func NewRouter(app *fiber.App, cfg *config.Config, c usecase.Category, g usecase
 
 	if cfg.Swagger.Enabled {
 		applySwaggerConfig(cfg)
+		app.Get("/swagger", func(ctx *fiber.Ctx) error {
+			return ctx.Redirect("/swagger/index.html", fiber.StatusMovedPermanently)
+		})
 		app.Get("/swagger/*", swagger.HandlerDefault)
 	}
 
 	app.Get("/healthz", func(ctx *fiber.Ctx) error { return ctx.SendStatus(http.StatusOK) })
 
+	jwtManager := authjwt.NewManager(cfg.Auth.JWTSecret, cfg.Auth.JWTTTL, cfg.Auth.JWTIssuer)
 	apiV1Group := app.Group("/v1")
+	apiV1Group.Use(middleware.OptionalAuthJWT(jwtManager))
 	{
 		categoryMediaBaseURL := cfg.CDN.CategoryMediaBaseURL
 		if categoryMediaBaseURL == "" {
@@ -66,7 +72,7 @@ func NewRouter(app *fiber.App, cfg *config.Config, c usecase.Category, g usecase
 			incidentMediaBaseURL = cfg.CDN.AvatarBaseURL
 		}
 		v1.NewIncidentRoutes(apiV1Group, i, l, incidentMediaBaseURL)
-		v1.NewAuthRoutes(apiV1Group, u, l)
+		v1.NewAuthRoutes(apiV1Group, u, l, jwtManager)
 	}
 }
 

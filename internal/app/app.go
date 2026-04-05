@@ -48,6 +48,12 @@ func Run(cfg *config.Config) { //nolint: gocyclo,cyclop,funlen,gocritic,nolintli
 
 	userRepo := persistent.NewUserRepo(pg)
 	userUC := userUseCase.New(userRepo)
+	if _, err = userUC.EnsureBootstrapAdmin(context.Background(), cfg.Admin); err != nil {
+		l.Fatal(fmt.Errorf("app - Run - userUC.EnsureBootstrapAdmin: %w", err))
+	}
+	if cfg.Admin.Enabled {
+		l.Info("app - Run - bootstrap admin ensured for %s", cfg.Admin.Email)
+	}
 	incidentUC := incidentUseCase.New(persistent.NewIncidentRepo(pg), userRepo, persistent.NewCategoryRepo(pg), geoRepo)
 
 	httpServer := httpserver.New(l, httpserver.Port(cfg.HTTP.Port), httpserver.Prefork(cfg.HTTP.UsePreforkMode))

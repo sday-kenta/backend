@@ -2,14 +2,18 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/caarlos0/env/v11"
+	"github.com/joho/godotenv"
 )
 
 type (
 	Config struct {
 		App       App
+		Admin     AdminBootstrap
+		Auth      Auth
 		HTTP      HTTP
 		Log       Log
 		PG        PG
@@ -23,6 +27,27 @@ type (
 	App struct {
 		Name    string `env:"APP_NAME,required"`
 		Version string `env:"APP_VERSION,required"`
+	}
+
+	AdminBootstrap struct {
+		Enabled    bool   `env:"ADMIN_BOOTSTRAP_ENABLED" envDefault:"false"`
+		Login      string `env:"ADMIN_BOOTSTRAP_LOGIN" envDefault:"admin"`
+		Email      string `env:"ADMIN_BOOTSTRAP_EMAIL" envDefault:""`
+		Password   string `env:"ADMIN_BOOTSTRAP_PASSWORD" envDefault:""`
+		Phone      string `env:"ADMIN_BOOTSTRAP_PHONE" envDefault:""`
+		LastName   string `env:"ADMIN_BOOTSTRAP_LAST_NAME" envDefault:"Bootstrap"`
+		FirstName  string `env:"ADMIN_BOOTSTRAP_FIRST_NAME" envDefault:"Admin"`
+		MiddleName string `env:"ADMIN_BOOTSTRAP_MIDDLE_NAME" envDefault:""`
+		City       string `env:"ADMIN_BOOTSTRAP_CITY" envDefault:"N/A"`
+		Street     string `env:"ADMIN_BOOTSTRAP_STREET" envDefault:"N/A"`
+		House      string `env:"ADMIN_BOOTSTRAP_HOUSE" envDefault:"N/A"`
+		Apartment  string `env:"ADMIN_BOOTSTRAP_APARTMENT" envDefault:""`
+	}
+
+	Auth struct {
+		JWTSecret string        `env:"JWT_SECRET" envDefault:"dev-secret-change-me"`
+		JWTTTL    time.Duration `env:"JWT_TTL" envDefault:"24h"`
+		JWTIssuer string        `env:"JWT_ISSUER" envDefault:"backend"`
 	}
 
 	HTTP struct {
@@ -74,6 +99,10 @@ type (
 )
 
 func NewConfig() (*Config, error) {
+	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("load .env: %w", err)
+	}
+
 	cfg := &Config{}
 	if err := env.Parse(cfg); err != nil {
 		return nil, fmt.Errorf("config error: %w", err)

@@ -2,10 +2,12 @@ package user
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/sday-kenta/backend/config"
 	"github.com/sday-kenta/backend/internal/entity"
 	"github.com/sday-kenta/backend/internal/repo"
 	"github.com/sday-kenta/backend/internal/usererr"
@@ -23,6 +25,58 @@ func New(r repo.UserRepo) *UseCase {
 	return &UseCase{
 		repo: r,
 	}
+}
+
+// EnsureBootstrapAdmin creates the first admin from env or elevates an existing user.
+func (uc *UseCase) EnsureBootstrapAdmin(ctx context.Context, cfg config.AdminBootstrap) (entity.User, error) {
+	if !cfg.Enabled {
+		return entity.User{}, nil
+	}
+
+	email := strings.TrimSpace(cfg.Email)
+	password := strings.TrimSpace(cfg.Password)
+	phone := strings.TrimSpace(cfg.Phone)
+	if email == "" || password == "" || phone == "" {
+		return entity.User{}, fmt.Errorf("admin bootstrap requires ADMIN_BOOTSTRAP_EMAIL, ADMIN_BOOTSTRAP_PASSWORD and ADMIN_BOOTSTRAP_PHONE")
+	}
+
+	login := strings.TrimSpace(cfg.Login)
+	if login == "" {
+		login = "admin"
+	}
+
+	existing, err := uc.repo.GetByIdentifier(ctx, email)
+	switch {
+	case err == nil:
+		existing.Role = "admin"
+		existing.IsBlocked = false
+		if _, updateErr := uc.Update(ctx, existing); updateErr != nil {
+			return entity.User{}, fmt.Errorf("UserUseCase - EnsureBootstrapAdmin - uc.Update: %w", updateErr)
+		}
+		return uc.repo.GetByID(ctx, existing.ID)
+	case !errors.Is(err, usererr.ErrNotFound):
+		return entity.User{}, fmt.Errorf("UserUseCase - EnsureBootstrapAdmin - uc.repo.GetByIdentifier: %w", err)
+	}
+
+	admin, err := uc.Create(ctx, entity.User{
+		Login:      login,
+		Email:      email,
+		LastName:   strings.TrimSpace(cfg.LastName),
+		FirstName:  strings.TrimSpace(cfg.FirstName),
+		MiddleName: strings.TrimSpace(cfg.MiddleName),
+		Phone:      phone,
+		City:       strings.TrimSpace(cfg.City),
+		Street:     strings.TrimSpace(cfg.Street),
+		House:      strings.TrimSpace(cfg.House),
+		Apartment:  strings.TrimSpace(cfg.Apartment),
+		IsBlocked:  false,
+		Role:       "admin",
+	}, password)
+	if err != nil {
+		return entity.User{}, fmt.Errorf("UserUseCase - EnsureBootstrapAdmin - uc.Create: %w", err)
+	}
+
+	return admin, nil
 }
 
 // normalizePhone extracts digits and normalizes to format +7 (XXX) XXX-XX-XX.
@@ -181,5 +235,3 @@ func (uc *UseCase) UpdateAvatar(ctx context.Context, id int64, avatarURL string)
 
 	return nil
 }
-
-

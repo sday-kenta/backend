@@ -107,8 +107,9 @@ func (r *V1) searchAddresses(ctx *fiber.Ctx) error {
 // @Tags maps
 // @Accept json
 // @Produce json
-// @Param X-User-Role header string true "User role (must be 'admin')" default(admin)
+// @Security BearerAuth
 // @Success 200 {object} map[string]string "Reload successful"
+// @Failure 401 {object} response.Error "Authentication required"
 // @Failure 403 {object} response.Error "Access denied"
 // @Failure 500 {object} response.Error "Internal error"
 // @Router /maps/reload-cities [post]

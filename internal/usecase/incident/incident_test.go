@@ -101,6 +101,16 @@ func TestNormalizePhotoContentType(t *testing.T) {
 	require.Equal(t, "application/octet-stream", normalizePhotoContentType(""))
 }
 
+func TestEnsureCanViewAllowsPublishedForAnonymous(t *testing.T) {
+	t.Parallel()
+
+	err := ensureCanView(entity.Incident{
+		Status: entity.IncidentStatusPublished,
+	}, 0, false)
+
+	require.NoError(t, err)
+}
+
 type incidentRepoStub struct {
 	incident     entity.Incident
 	updateCalled bool

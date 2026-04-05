@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	authmw "github.com/sday-kenta/backend/internal/controller/restapi/middleware"
 	"github.com/sday-kenta/backend/internal/controller/restapi/v1/request"
 	"github.com/sday-kenta/backend/internal/controller/restapi/v1/response"
 	"github.com/sday-kenta/backend/internal/entity"
@@ -35,17 +36,15 @@ type requester struct {
 }
 
 func requesterFromCtx(ctx *fiber.Ctx) (requester, error) {
-	r := requester{IsAdmin: ctx.Get("X-User-Role") == "admin"}
-	if header := strings.TrimSpace(ctx.Get("X-User-ID")); header != "" {
-		userID, err := strconv.ParseInt(header, 10, 64)
-		if err != nil || userID <= 0 {
-			return requester{}, fmt.Errorf("invalid X-User-ID header")
-		}
-		r.UserID = userID
-		r.HasUser = true
+	if user, ok := authmw.CurrentUser(ctx); ok {
+		return requester{
+			UserID:  user.UserID,
+			HasUser: true,
+			IsAdmin: user.IsAdmin(),
+		}, nil
 	}
 
-	return r, nil
+	return requester{}, nil
 }
 
 func requireRequester(ctx *fiber.Ctx) (requester, error) {
@@ -54,7 +53,7 @@ func requireRequester(ctx *fiber.Ctx) (requester, error) {
 		return requester{}, err
 	}
 	if !r.HasUser {
-		return requester{}, fmt.Errorf("X-User-ID header is required")
+		return requester{}, fmt.Errorf("authentication required")
 	}
 
 	return r, nil
@@ -90,22 +89,23 @@ func incidentErrorResponse(ctx *fiber.Ctx, err error) error {
 }
 
 // @Summary     Создать инцидент
-// @Description Создает новое сообщение об инциденте. До внедрения JWT автор определяется по заголовку X-User-ID.
+// @Description Создает новое сообщение об инциденте для авторизованного пользователя. Если статус не указан или передан как review/published, инцидент сохраняется в статусе review.
 // @ID          create-incident
 // @Tags        incidents
 // @Accept      json
 // @Produce     json
-// @Param       X-User-ID header int true "ID текущего пользователя"
 // @Param       request body request.CreateIncident true "Данные инцидента"
+// @Security    BearerAuth
 // @Success     201 {object} response.Incident
 // @Failure     400 {object} response.Error
+// @Failure     401 {object} response.Error
 // @Failure     403 {object} response.Error
 // @Failure     500 {object} response.Error
 // @Router      /incidents [post]
 func (r *IncidentsV1) createIncident(ctx *fiber.Ctx) error {
 	requester, err := requireRequester(ctx)
 	if err != nil {
-		return errorResponse(ctx, http.StatusBadRequest, err.Error())
+		return errorResponse(ctx, http.StatusUnauthorized, err.Error())
 	}
 
 	var body request.CreateIncident
@@ -170,22 +170,23 @@ func (r *IncidentsV1) listIncidents(ctx *fiber.Ctx) error {
 }
 
 // @Summary     Получить мои инциденты
-// @Description Возвращает список инцидентов текущего пользователя, включая черновики и опубликованные сообщения.
+// @Description Возвращает список инцидентов текущего пользователя, включая draft, review и published.
 // @ID          list-my-incidents
 // @Tags        incidents
 // @Accept      json
 // @Produce     json
-// @Param       X-User-ID header int true "ID текущего пользователя"
 // @Param       status query string false "Фильтр по статусу" Enums(draft,review,published,all)
 // @Param       category_id query int false "ID категории"
+// @Security    BearerAuth
 // @Success     200 {array} response.Incident
 // @Failure     400 {object} response.Error
+// @Failure     401 {object} response.Error
 // @Failure     500 {object} response.Error
 // @Router      /my/incidents [get]
 func (r *IncidentsV1) listMyIncidents(ctx *fiber.Ctx) error {
 	requester, err := requireRequester(ctx)
 	if err != nil {
-		return errorResponse(ctx, http.StatusBadRequest, err.Error())
+		return errorResponse(ctx, http.StatusUnauthorized, err.Error())
 	}
 
 	var (
@@ -219,16 +220,16 @@ func (r *IncidentsV1) listMyIncidents(ctx *fiber.Ctx) error {
 }
 
 // @Summary     Получить инцидент по ID
-// @Description Возвращает детальную карточку инцидента. Доступно только автору инцидента или администратору.
+// @Description Возвращает детальную карточку инцидента. Published-инциденты доступны всем. Draft и review доступны только автору или администратору.
 // @ID          get-incident
 // @Tags        incidents
 // @Accept      json
 // @Produce     json
 // @Param       id path int true "ID инцидента"
-// @Param       X-User-ID header int true "ID текущего пользователя"
-// @Param       X-User-Role header string false "Роль текущего пользователя" default(user)
+// @Param       Authorization header string false "Bearer access token. Нужен для доступа к draft/review инцидентам."
 // @Success     200 {object} response.Incident
 // @Failure     400 {object} response.Error
+// @Failure     401 {object} response.Error
 // @Failure     403 {object} response.Error
 // @Failure     404 {object} response.Error
 // @Failure     500 {object} response.Error
@@ -239,9 +240,9 @@ func (r *IncidentsV1) getIncident(ctx *fiber.Ctx) error {
 		return errorResponse(ctx, http.StatusBadRequest, "invalid id")
 	}
 
-	requester, err := requireRequester(ctx)
+	requester, err := requesterFromCtx(ctx)
 	if err != nil {
-		return errorResponse(ctx, http.StatusBadRequest, err.Error())
+		return errorResponse(ctx, http.StatusUnauthorized, err.Error())
 	}
 
 	incident, err := r.i.GetByID(ctx.UserContext(), requester.UserID, requester.IsAdmin, id)
@@ -254,17 +255,17 @@ func (r *IncidentsV1) getIncident(ctx *fiber.Ctx) error {
 }
 
 // @Summary     Обновить инцидент
-// @Description Обновляет сообщение об инциденте. Доступно только автору или администратору.
+// @Description Обновляет сообщение об инциденте. Доступно только автору или администратору. Статус published может установить только администратор.
 // @ID          update-incident
 // @Tags        incidents
 // @Accept      json
 // @Produce     json
 // @Param       id path int true "ID инцидента"
-// @Param       X-User-ID header int true "ID текущего пользователя"
-// @Param       X-User-Role header string false "Роль текущего пользователя" default(user)
 // @Param       request body request.UpdateIncident true "Поля для обновления инцидента"
+// @Security    BearerAuth
 // @Success     200 {object} response.Incident
 // @Failure     400 {object} response.Error
+// @Failure     401 {object} response.Error
 // @Failure     403 {object} response.Error
 // @Failure     404 {object} response.Error
 // @Failure     500 {object} response.Error
@@ -276,7 +277,7 @@ func (r *IncidentsV1) updateIncident(ctx *fiber.Ctx) error {
 	}
 	requester, err := requireRequester(ctx)
 	if err != nil {
-		return errorResponse(ctx, http.StatusBadRequest, err.Error())
+		return errorResponse(ctx, http.StatusUnauthorized, err.Error())
 	}
 
 	var body request.UpdateIncident
@@ -317,10 +318,10 @@ func (r *IncidentsV1) updateIncident(ctx *fiber.Ctx) error {
 // @Accept      json
 // @Produce     json
 // @Param       id path int true "ID инцидента"
-// @Param       X-User-ID header int true "ID текущего пользователя"
-// @Param       X-User-Role header string false "Роль текущего пользователя" default(user)
+// @Security    BearerAuth
 // @Success     204
 // @Failure     400 {object} response.Error
+// @Failure     401 {object} response.Error
 // @Failure     403 {object} response.Error
 // @Failure     404 {object} response.Error
 // @Failure     500 {object} response.Error
@@ -332,7 +333,7 @@ func (r *IncidentsV1) deleteIncident(ctx *fiber.Ctx) error {
 	}
 	requester, err := requireRequester(ctx)
 	if err != nil {
-		return errorResponse(ctx, http.StatusBadRequest, err.Error())
+		return errorResponse(ctx, http.StatusUnauthorized, err.Error())
 	}
 
 	photos, err := r.i.Delete(ctx.UserContext(), requester.UserID, requester.IsAdmin, id)
@@ -357,17 +358,17 @@ func (r *IncidentsV1) deleteIncident(ctx *fiber.Ctx) error {
 }
 
 // @Summary     Загрузить фотографии инцидента
-// @Description Загружает одну или несколько фотографий инцидента. Используй multipart/form-data с повторяемым полем photos.
+// @Description Загружает одну или несколько фотографий инцидента. Используй multipart/form-data с повторяемым полем photos. Доступно только автору или администратору.
 // @ID          upload-incident-photos
 // @Tags        incidents
 // @Accept      multipart/form-data
 // @Produce     json
 // @Param       id path int true "ID инцидента"
-// @Param       X-User-ID header int true "ID текущего пользователя"
-// @Param       X-User-Role header string false "Роль текущего пользователя" default(user)
 // @Param       photos formData file true "Фотографии инцидента в формате JPEG/PNG; поле можно передавать несколько раз"
+// @Security    BearerAuth
 // @Success     201 {array} response.IncidentPhoto
 // @Failure     400 {object} response.Error
+// @Failure     401 {object} response.Error
 // @Failure     403 {object} response.Error
 // @Failure     404 {object} response.Error
 // @Failure     500 {object} response.Error
@@ -379,7 +380,7 @@ func (r *IncidentsV1) uploadIncidentPhotos(ctx *fiber.Ctx) error {
 	}
 	requester, err := requireRequester(ctx)
 	if err != nil {
-		return errorResponse(ctx, http.StatusBadRequest, err.Error())
+		return errorResponse(ctx, http.StatusUnauthorized, err.Error())
 	}
 	if _, err = r.i.GetByID(ctx.UserContext(), requester.UserID, requester.IsAdmin, incidentID); err != nil {
 		r.l.Error(err, "restapi - v1 - uploadIncidentPhotos - GetByID")
@@ -461,10 +462,10 @@ func (r *IncidentsV1) uploadIncidentPhotos(ctx *fiber.Ctx) error {
 // @Produce     json
 // @Param       id path int true "ID инцидента"
 // @Param       photoId path int true "ID фотографии"
-// @Param       X-User-ID header int true "ID текущего пользователя"
-// @Param       X-User-Role header string false "Роль текущего пользователя" default(user)
+// @Security    BearerAuth
 // @Success     204
 // @Failure     400 {object} response.Error
+// @Failure     401 {object} response.Error
 // @Failure     403 {object} response.Error
 // @Failure     404 {object} response.Error
 // @Failure     500 {object} response.Error
@@ -480,7 +481,7 @@ func (r *IncidentsV1) deleteIncidentPhoto(ctx *fiber.Ctx) error {
 	}
 	requester, err := requireRequester(ctx)
 	if err != nil {
-		return errorResponse(ctx, http.StatusBadRequest, err.Error())
+		return errorResponse(ctx, http.StatusUnauthorized, err.Error())
 	}
 
 	photo, err := r.i.DeletePhoto(ctx.UserContext(), requester.UserID, requester.IsAdmin, incidentID, photoID)
@@ -500,16 +501,16 @@ func (r *IncidentsV1) deleteIncidentPhoto(ctx *fiber.Ctx) error {
 }
 
 // @Summary     Скачать документ обращения
-// @Description Возвращает HTML-документ обращения по инциденту с Content-Disposition attachment.
+// @Description Возвращает HTML-документ обращения по инциденту с Content-Disposition attachment. Доступно только автору или администратору.
 // @ID          download-incident-document
 // @Tags        incidents
 // @Accept      json
 // @Produce     text/html
 // @Param       id path int true "ID инцидента"
-// @Param       X-User-ID header int true "ID текущего пользователя"
-// @Param       X-User-Role header string false "Роль текущего пользователя" default(user)
+// @Security    BearerAuth
 // @Success     200 {string} string "HTML документ обращения"
 // @Failure     400 {object} response.Error
+// @Failure     401 {object} response.Error
 // @Failure     403 {object} response.Error
 // @Failure     404 {object} response.Error
 // @Failure     500 {object} response.Error
@@ -519,16 +520,16 @@ func (r *IncidentsV1) downloadIncidentDocument(ctx *fiber.Ctx) error {
 }
 
 // @Summary     Получить печатную версию документа обращения
-// @Description Возвращает HTML-документ обращения с inline Content-Disposition для печати на клиенте.
+// @Description Возвращает HTML-документ обращения с inline Content-Disposition для печати на клиенте. Доступно только автору или администратору.
 // @ID          print-incident-document
 // @Tags        incidents
 // @Accept      json
 // @Produce     text/html
 // @Param       id path int true "ID инцидента"
-// @Param       X-User-ID header int true "ID текущего пользователя"
-// @Param       X-User-Role header string false "Роль текущего пользователя" default(user)
+// @Security    BearerAuth
 // @Success     200 {string} string "HTML документ обращения"
 // @Failure     400 {object} response.Error
+// @Failure     401 {object} response.Error
 // @Failure     403 {object} response.Error
 // @Failure     404 {object} response.Error
 // @Failure     500 {object} response.Error
@@ -544,7 +545,7 @@ func (r *IncidentsV1) sendIncidentDocument(ctx *fiber.Ctx, asAttachment bool) er
 	}
 	requester, err := requireRequester(ctx)
 	if err != nil {
-		return errorResponse(ctx, http.StatusBadRequest, err.Error())
+		return errorResponse(ctx, http.StatusUnauthorized, err.Error())
 	}
 
 	doc, err := r.i.RenderDocument(ctx.UserContext(), requester.UserID, requester.IsAdmin, incidentID)
@@ -564,17 +565,17 @@ func (r *IncidentsV1) sendIncidentDocument(ctx *fiber.Ctx, asAttachment bool) er
 }
 
 // @Summary     Отправить документ обращения на email
-// @Description Отправляет документ обращения на указанный email. Если email не передан, используется email автора инцидента.
+// @Description Отправляет документ обращения на указанный email. Если email не передан, используется email автора инцидента. Доступно только автору или администратору.
 // @ID          email-incident-document
 // @Tags        incidents
 // @Accept      json
 // @Produce     json
 // @Param       id path int true "ID инцидента"
-// @Param       X-User-ID header int true "ID текущего пользователя"
-// @Param       X-User-Role header string false "Роль текущего пользователя" default(user)
 // @Param       request body request.SendIncidentDocumentEmail false "Email получателя; можно не передавать"
+// @Security    BearerAuth
 // @Success     200 {object} response.MessageResponse
 // @Failure     400 {object} response.Error
+// @Failure     401 {object} response.Error
 // @Failure     403 {object} response.Error
 // @Failure     404 {object} response.Error
 // @Failure     500 {object} response.Error
@@ -586,7 +587,7 @@ func (r *IncidentsV1) emailIncidentDocument(ctx *fiber.Ctx) error {
 	}
 	requester, err := requireRequester(ctx)
 	if err != nil {
-		return errorResponse(ctx, http.StatusBadRequest, err.Error())
+		return errorResponse(ctx, http.StatusUnauthorized, err.Error())
 	}
 
 	var body request.SendIncidentDocumentEmail
