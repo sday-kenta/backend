@@ -15,6 +15,11 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const (
+	purposePasswordReset = "password_reset"
+	purposeRegister      = "register"
+)
+
 // UseCase implements usecase.User.
 type UseCase struct {
 	repo repo.UserRepo
@@ -79,6 +84,10 @@ func (uc *UseCase) EnsureBootstrapAdmin(ctx context.Context, cfg config.AdminBoo
 	return admin, nil
 }
 
+func normalizeEmail(s string) string {
+	return strings.ToLower(strings.TrimSpace(s))
+}
+
 // normalizePhone extracts digits and normalizes to format +7 (XXX) XXX-XX-XX.
 // Accepts: 79991234567, 89991234567 (→7999...), 9991234567 (→7999...), +7 (999) 123-45-67.
 // Returns normalized digits (e.g. "79997777777") or error.
@@ -104,26 +113,98 @@ func normalizePhone(phone *string) error {
 	return nil
 }
 
-// Create creates a new user with hashed password.
+// Create создаёт пользователя. Саморегистрация (не admin): только заявка в pending_registrations до подтверждения email.
 func (uc *UseCase) Create(ctx context.Context, u entity.User, password string) (entity.User, error) {
 	if err := normalizePhone(&u.Phone); err != nil {
 		return entity.User{}, err
 	}
+	u.Email = normalizeEmail(u.Email)
+	u.Login = strings.TrimSpace(u.Login)
+	if u.Role == "" {
+		u.Role = "user"
+	}
+
+	if strings.EqualFold(u.Role, "admin") {
+		return uc.createUserDirect(ctx, u, password)
+	}
+
+	return uc.createPendingRegistration(ctx, u, password)
+}
+
+func (uc *UseCase) createUserDirect(ctx context.Context, u entity.User, password string) (entity.User, error) {
+	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return entity.User{}, fmt.Errorf("UserUseCase - Create - bcrypt.GenerateFromPassword: %w", err)
+	}
+	u.PasswordHash = string(hashed)
+	u.EmailVerified = true
+	if err := uc.repo.Create(ctx, &u); err != nil {
+		return entity.User{}, err
+	}
+	return u, nil
+}
+
+func (uc *UseCase) createPendingRegistration(ctx context.Context, u entity.User, password string) (entity.User, error) {
+	if _, err := uc.repo.GetByIdentifier(ctx, u.Email); err == nil {
+		return entity.User{}, usererr.ErrDuplicateEmail
+	} else if !errors.Is(err, usererr.ErrNotFound) {
+		return entity.User{}, err
+	}
+	if _, err := uc.repo.GetByIdentifier(ctx, u.Login); err == nil {
+		return entity.User{}, usererr.ErrDuplicateLogin
+	} else if !errors.Is(err, usererr.ErrNotFound) {
+		return entity.User{}, err
+	}
+	if pend, err := uc.repo.GetPendingByEmail(ctx, u.Email); err != nil {
+		return entity.User{}, err
+	} else if pend != nil {
+		return entity.User{}, usererr.ErrDuplicateEmail
+	}
+	if pend, err := uc.repo.GetPendingByLogin(ctx, u.Login); err != nil {
+		return entity.User{}, err
+	} else if pend != nil {
+		return entity.User{}, usererr.ErrDuplicateLogin
+	}
+
 	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return entity.User{}, fmt.Errorf("UserUseCase - Create - bcrypt.GenerateFromPassword: %w", err)
 	}
 
-	u.PasswordHash = string(hashed)
-	if u.Role == "" {
-		u.Role = "user"
+	pend := &entity.PendingRegistration{
+		Email:        u.Email,
+		Login:        u.Login,
+		PasswordHash: string(hashed),
+		LastName:     u.LastName,
+		FirstName:    u.FirstName,
+		MiddleName:   u.MiddleName,
+		Phone:        u.Phone,
+		City:         u.City,
+		Street:       u.Street,
+		House:        u.House,
+		Apartment:    u.Apartment,
+		Role:         u.Role,
 	}
-
-	if err = uc.repo.Create(ctx, &u); err != nil {
+	if err := uc.repo.UpsertPendingRegistration(ctx, pend); err != nil {
 		return entity.User{}, err
 	}
 
-	return u, nil
+	return entity.User{
+		ID:            0,
+		Login:         u.Login,
+		Email:         u.Email,
+		EmailVerified: false,
+		LastName:      u.LastName,
+		FirstName:     u.FirstName,
+		MiddleName:    u.MiddleName,
+		Phone:         u.Phone,
+		City:          u.City,
+		Street:        u.Street,
+		House:         u.House,
+		Apartment:     u.Apartment,
+		IsBlocked:     u.IsBlocked,
+		Role:          u.Role,
+	}, nil
 }
 
 // Delete removes a user by ID.
@@ -163,12 +244,33 @@ func (uc *UseCase) Authenticate(ctx context.Context, identifier, password string
 		return entity.User{}, usererr.ErrInvalidCredentials
 	}
 
+	if !u.EmailVerified {
+		return entity.User{}, usererr.ErrEmailNotVerified
+	}
+
 	return u, nil
 }
 
 func (uc *UseCase) SendEmailVerificationCode(ctx context.Context, email, purpose string) error {
 	email = strings.TrimSpace(email)
 	purpose = strings.TrimSpace(purpose)
+
+	if purpose == purposeRegister {
+		if u, err := uc.repo.GetByIdentifier(ctx, email); err == nil {
+			email = u.Email
+		} else if errors.Is(err, usererr.ErrNotFound) {
+			pend, perr := uc.repo.GetPendingByEmail(ctx, normalizeEmail(email))
+			if perr != nil {
+				return perr
+			}
+			if pend == nil {
+				return usererr.ErrNotFound
+			}
+			email = pend.Email
+		} else {
+			return err
+		}
+	}
 
 	// 10 minutes TTL
 	const ttl = 10 * time.Minute
@@ -198,7 +300,138 @@ func (uc *UseCase) VerifyEmailVerificationCode(ctx context.Context, email, purpo
 	purpose = strings.TrimSpace(purpose)
 	code = strings.TrimSpace(code)
 
+	if purpose == purposeRegister {
+		var canon string
+		if pend, err := uc.repo.GetPendingByEmail(ctx, normalizeEmail(email)); err != nil {
+			return err
+		} else if pend != nil {
+			canon = pend.Email
+		} else {
+			u, err := uc.repo.GetByIdentifier(ctx, email)
+			if err != nil {
+				return err
+			}
+			canon = u.Email
+		}
+		email = canon
+	}
+
 	if err := uc.repo.ConsumeEmailVerificationCode(ctx, email, purpose, code, time.Now().Unix()); err != nil {
+		return err
+	}
+
+	if purpose != purposeRegister {
+		return nil
+	}
+
+	pend, err := uc.repo.GetPendingByEmail(ctx, email)
+	if err != nil {
+		return err
+	}
+	if pend != nil {
+		nu := entity.User{
+			Login:         pend.Login,
+			Email:         pend.Email,
+			PasswordHash:  pend.PasswordHash,
+			LastName:      pend.LastName,
+			FirstName:     pend.FirstName,
+			MiddleName:    pend.MiddleName,
+			Phone:         pend.Phone,
+			City:          pend.City,
+			Street:        pend.Street,
+			House:         pend.House,
+			Apartment:     pend.Apartment,
+			Role:          pend.Role,
+			IsBlocked:     false,
+			EmailVerified: true,
+		}
+		if nu.Role == "" {
+			nu.Role = "user"
+		}
+		if err := normalizePhone(&nu.Phone); err != nil {
+			return err
+		}
+		if err := uc.repo.Create(ctx, &nu); err != nil {
+			return err
+		}
+		if err := uc.repo.DeletePendingByEmail(ctx, email); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	if err := uc.repo.SetEmailVerifiedByEmail(ctx, email, true); err != nil {
+		return err
+	}
+	return nil
+}
+
+// SendPasswordResetCode stores a one-time code and emails it (only if a user with this email exists).
+func (uc *UseCase) SendPasswordResetCode(ctx context.Context, email string) error {
+	email = strings.TrimSpace(email)
+	u, err := uc.repo.GetByIdentifier(ctx, email)
+	if err != nil {
+		if errors.Is(err, usererr.ErrNotFound) {
+			return nil
+		}
+		return err
+	}
+
+	const ttl = 10 * time.Minute
+	code := mailsender.RandomRumber().String()
+	if err := uc.repo.CreateEmailVerificationCode(
+		ctx,
+		u.Email,
+		purposePasswordReset,
+		code,
+		time.Now().Add(ttl).Unix(),
+	); err != nil {
+		return err
+	}
+
+	subject := "Password Recovery 'SdayKenta'"
+	body := "Your code is " + code
+	if err := mailsender.SendMail(subject, body, []string{u.Email}); err != nil {
+		return fmt.Errorf("UserUseCase - SendPasswordResetCode - SendMail: %w", err)
+	}
+
+	return nil
+}
+
+// ResetPasswordWithCode verifies the emailed code and sets a new password.
+func (uc *UseCase) ResetPasswordWithCode(ctx context.Context, email, code, newPassword string) error {
+	email = strings.TrimSpace(email)
+	code = strings.TrimSpace(code)
+	newPassword = strings.TrimSpace(newPassword)
+	if len(newPassword) < 6 {
+		return usererr.ErrPasswordTooShort
+	}
+
+	u, err := uc.repo.GetByIdentifier(ctx, email)
+	if err != nil {
+		return err
+	}
+
+	if err := uc.repo.ConsumeEmailVerificationCode(
+		ctx,
+		u.Email,
+		purposePasswordReset,
+		code,
+		time.Now().Unix(),
+	); err != nil {
+		return err
+	}
+
+	hashed, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("UserUseCase - ResetPasswordWithCode - bcrypt: %w", err)
+	}
+
+	if err := uc.repo.UpdatePasswordHashByEmail(ctx, u.Email, string(hashed)); err != nil {
+		return err
+	}
+
+	if err := uc.repo.SetEmailVerifiedByEmail(ctx, u.Email, true); err != nil {
 		return err
 	}
 
@@ -220,11 +453,24 @@ func (uc *UseCase) Update(ctx context.Context, u entity.User) (entity.User, erro
 	if err := normalizePhone(&u.Phone); err != nil {
 		return entity.User{}, err
 	}
+	u.Email = normalizeEmail(u.Email)
+	old, err := uc.repo.GetByID(ctx, u.ID)
+	if err != nil {
+		return entity.User{}, err
+	}
+	if !strings.EqualFold(old.Email, strings.TrimSpace(u.Email)) {
+		u.EmailVerified = false
+	} else {
+		u.EmailVerified = old.EmailVerified
+	}
 	if err := uc.repo.Update(ctx, &u); err != nil {
 		return entity.User{}, err
 	}
-
-	return u, nil
+	out, err := uc.repo.GetByID(ctx, u.ID)
+	if err != nil {
+		return entity.User{}, err
+	}
+	return out, nil
 }
 
 // UpdateAvatar updates the avatar identifier/URL for a user.

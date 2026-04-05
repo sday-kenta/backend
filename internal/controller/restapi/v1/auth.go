@@ -68,6 +68,8 @@ func (r *AuthV1) login(ctx *fiber.Ctx) error {
 			return errorResponse(ctx, http.StatusUnauthorized, "invalid credentials")
 		case errors.Is(err, usererr.ErrUserBlocked):
 			return errorResponse(ctx, http.StatusForbidden, "user is blocked")
+		case errors.Is(err, usererr.ErrEmailNotVerified):
+			return errorResponse(ctx, http.StatusForbidden, err.Error())
 		default:
 			return userErrorResponse(ctx, err)
 		}

@@ -73,6 +73,7 @@ func NewRouter(app *fiber.App, cfg *config.Config, c usecase.Category, g usecase
 		}
 		v1.NewIncidentRoutes(apiV1Group, i, l, incidentMediaBaseURL)
 		v1.NewAuthRoutes(apiV1Group, u, l, jwtManager)
+		v1.NewFeedbackRoutes(apiV1Group, l)
 	}
 }
 

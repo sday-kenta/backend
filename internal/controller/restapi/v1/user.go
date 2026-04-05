@@ -17,7 +17,6 @@ import (
 	"github.com/sday-kenta/backend/internal/usecase"
 	"github.com/sday-kenta/backend/internal/usererr"
 	"github.com/sday-kenta/backend/pkg/logger"
-	"github.com/sday-kenta/backend/pkg/mailsender"
 	"github.com/sday-kenta/backend/pkg/objectstorage"
 )
 
@@ -35,6 +34,10 @@ func userErrorResponse(ctx *fiber.Ctx, err error) error {
 		return errorResponse(ctx, http.StatusBadRequest, "invalid role")
 	case errors.Is(err, usererr.ErrInvalidPhone):
 		return errorResponse(ctx, http.StatusBadRequest, err.Error())
+	case errors.Is(err, usererr.ErrPasswordTooShort):
+		return errorResponse(ctx, http.StatusBadRequest, err.Error())
+	case errors.Is(err, usererr.ErrEmailNotVerified):
+		return errorResponse(ctx, http.StatusForbidden, err.Error())
 	default:
 		return errorResponse(ctx, http.StatusInternalServerError, "database error")
 	}
@@ -419,16 +422,49 @@ func (r *UsersV1) sendPasswordResetCode(ctx *fiber.Ctx) error {
 		return errorResponse(ctx, http.StatusBadRequest, formatValidationError(err))
 	}
 
-	code := mailsender.RandomRumber().String()
-	if err := mailsender.SendMail(
-		"Password Recovery 'SdayKenta' ",
-		"Your code is "+code,
-		[]string{body.Email},
-	); err != nil {
-		r.l.Error(err, "restapi - v1 - sendPasswordResetCode - SendMail")
-		return errorResponse(ctx, http.StatusInternalServerError, "failed to send email")
+	if err := r.u.SendPasswordResetCode(ctx.UserContext(), body.Email); err != nil {
+		r.l.Error(err, "restapi - v1 - sendPasswordResetCode")
+		return userErrorResponse(ctx, err)
 	}
 
+	return ctx.SendStatus(http.StatusNoContent)
+}
+
+// @Summary     Reset password with code
+// @Description Verifies the code from email and sets a new password
+// @ID          reset-password-with-code
+// @Tags  	    users
+// @Accept      json
+// @Produce     json
+// @Param       request body request.ResetPasswordWithCode true "Email, code and new password"
+// @Success     204
+// @Failure     400 {object} response.Error
+// @Failure     404 {object} response.Error
+// @Failure     500 {object} response.Error
+// @Router      /users/password-reset/reset [post]
+func (r *UsersV1) resetPasswordWithCode(ctx *fiber.Ctx) error {
+	var body request.ResetPasswordWithCode
+	if err := ctx.BodyParser(&body); err != nil {
+		r.l.Error(err, "restapi - v1 - resetPasswordWithCode")
+		return errorResponse(ctx, http.StatusBadRequest, "invalid request body")
+	}
+	if err := r.v.Struct(body); err != nil {
+		r.l.Error(err, "restapi - v1 - resetPasswordWithCode")
+		return errorResponse(ctx, http.StatusBadRequest, formatValidationError(err))
+	}
+	if err := r.u.ResetPasswordWithCode(ctx.UserContext(), body.Email, body.Code, body.NewPassword); err != nil {
+		r.l.Error(err, "restapi - v1 - resetPasswordWithCode")
+		switch {
+		case errors.Is(err, usererr.ErrInvalidCode), errors.Is(err, usererr.ErrCodeExpired):
+			return errorResponse(ctx, http.StatusBadRequest, err.Error())
+		case errors.Is(err, usererr.ErrPasswordTooShort):
+			return errorResponse(ctx, http.StatusBadRequest, err.Error())
+		case errors.Is(err, usererr.ErrNotFound):
+			return errorResponse(ctx, http.StatusNotFound, "user not found")
+		default:
+			return userErrorResponse(ctx, err)
+		}
+	}
 	return ctx.SendStatus(http.StatusNoContent)
 }
 
@@ -534,6 +570,8 @@ func (r *UsersV1) login(ctx *fiber.Ctx) error {
 			return errorResponse(ctx, http.StatusUnauthorized, "invalid credentials")
 		case errors.Is(err, usererr.ErrUserBlocked):
 			return errorResponse(ctx, http.StatusForbidden, "user is blocked")
+		case errors.Is(err, usererr.ErrEmailNotVerified):
+			return errorResponse(ctx, http.StatusForbidden, err.Error())
 		default:
 			return userErrorResponse(ctx, err)
 		}

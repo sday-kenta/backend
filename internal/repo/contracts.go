@@ -41,6 +41,13 @@ type (
 		List(ctx context.Context) ([]entity.User, error)
 		Update(ctx context.Context, user *entity.User) error
 		UpdateAvatar(ctx context.Context, id int64, avatarURL string) error
+		UpdatePasswordHashByEmail(ctx context.Context, email, passwordHash string) error
+		SetEmailVerifiedByEmail(ctx context.Context, email string, verified bool) error
+
+		UpsertPendingRegistration(ctx context.Context, p *entity.PendingRegistration) error
+		GetPendingByEmail(ctx context.Context, email string) (*entity.PendingRegistration, error)
+		GetPendingByLogin(ctx context.Context, login string) (*entity.PendingRegistration, error)
+		DeletePendingByEmail(ctx context.Context, email string) error
 	}
 
 	IncidentRepo interface {

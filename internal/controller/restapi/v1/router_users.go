@@ -28,5 +28,6 @@ func NewUserRoutes(apiV1Group fiber.Router, u usecase.User, l logger.Interface, 
 		usersGroup.Put("/:id", authmw.RequireAuth(), r.updateUser)
 		usersGroup.Post("/:id/avatar", authmw.RequireAuth(), r.uploadAvatar)
 		usersGroup.Post("/password-reset/send-code", r.sendPasswordResetCode)
+		usersGroup.Post("/password-reset/reset", r.resetPasswordWithCode)
 	}
 }

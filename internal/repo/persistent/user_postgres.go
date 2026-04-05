@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Masterminds/squirrel"
@@ -60,6 +61,7 @@ func (r *UserRepo) Create(ctx context.Context, u *entity.User) error {
 		Columns(
 			"login",
 			"email",
+			"email_verified",
 			"password_hash",
 			"last_name",
 			"first_name",
@@ -75,6 +77,7 @@ func (r *UserRepo) Create(ctx context.Context, u *entity.User) error {
 		Values(
 			u.Login,
 			u.Email,
+			u.EmailVerified,
 			u.PasswordHash,
 			u.LastName,
 			u.FirstName,
@@ -129,6 +132,7 @@ func (r *UserRepo) GetByID(ctx context.Context, id int64) (entity.User, error) {
 			"u.id",
 			"u.login",
 			"u.email",
+			"u.email_verified",
 			"u.password_hash",
 			"u.last_name",
 			"u.first_name",
@@ -165,6 +169,7 @@ func (r *UserRepo) GetByID(ctx context.Context, id int64) (entity.User, error) {
 		&u.ID,
 		&u.Login,
 		&u.Email,
+		&u.EmailVerified,
 		&u.PasswordHash,
 		&u.LastName,
 		&u.FirstName,
@@ -205,6 +210,7 @@ SELECT
   u.id,
   u.login,
   u.email,
+  u.email_verified,
   u.password_hash,
   u.last_name,
   u.first_name,
@@ -239,6 +245,7 @@ LIMIT 1`
 		&u.ID,
 		&u.Login,
 		&u.Email,
+		&u.EmailVerified,
 		&u.PasswordHash,
 		&u.LastName,
 		&u.FirstName,
@@ -270,11 +277,16 @@ LIMIT 1`
 	return u, nil
 }
 
+func normEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
+}
+
 func (r *UserRepo) CreateEmailVerificationCode(
 	ctx context.Context,
 	email, purpose, code string,
 	expiresAtUnix int64,
 ) error {
+	email = normEmail(email)
 	expiresAt := time.Unix(expiresAtUnix, 0).UTC()
 
 	tx, err := r.Pool.Begin(ctx)
@@ -317,6 +329,7 @@ func (r *UserRepo) ConsumeEmailVerificationCode(
 	email, purpose, code string,
 	nowUnix int64,
 ) error {
+	email = normEmail(email)
 	now := time.Unix(nowUnix, 0).UTC()
 
 	tx, err := r.Pool.Begin(ctx)
@@ -378,6 +391,7 @@ func (r *UserRepo) List(ctx context.Context) ([]entity.User, error) {
 			"u.id",
 			"u.login",
 			"u.email",
+			"u.email_verified",
 			"u.password_hash",
 			"u.last_name",
 			"u.first_name",
@@ -422,6 +436,7 @@ func (r *UserRepo) List(ctx context.Context) ([]entity.User, error) {
 			&u.ID,
 			&u.Login,
 			&u.Email,
+			&u.EmailVerified,
 			&u.PasswordHash,
 			&u.LastName,
 			&u.FirstName,
@@ -463,6 +478,7 @@ func (r *UserRepo) Update(ctx context.Context, u *entity.User) error {
 		Update("users").
 		Set("login", u.Login).
 		Set("email", u.Email).
+		Set("email_verified", u.EmailVerified).
 		Set("last_name", u.LastName).
 		Set("first_name", u.FirstName).
 		Set("middle_name", u.MiddleName).
@@ -478,6 +494,46 @@ func (r *UserRepo) Update(ctx context.Context, u *entity.User) error {
 		ToSql()
 	if err != nil {
 		return fmt.Errorf("UserRepo - Update - r.Builder: %w", err)
+	}
+
+	var updatedID int64
+	if err = r.Pool.QueryRow(ctx, query, args...).Scan(&updatedID); err != nil {
+		return mapPgError(err)
+	}
+
+	return nil
+}
+
+// UpdatePasswordHashByEmail sets password_hash for the user with the given email (case-insensitive match).
+func (r *UserRepo) UpdatePasswordHashByEmail(ctx context.Context, email, passwordHash string) error {
+	query, args, err := r.Builder.
+		Update("users").
+		Set("password_hash", passwordHash).
+		Where(squirrel.Expr("lower(email) = lower(?)", email)).
+		Suffix("RETURNING id").
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("UserRepo - UpdatePasswordHashByEmail - r.Builder: %w", err)
+	}
+
+	var updatedID int64
+	if err = r.Pool.QueryRow(ctx, query, args...).Scan(&updatedID); err != nil {
+		return mapPgError(err)
+	}
+
+	return nil
+}
+
+// SetEmailVerifiedByEmail sets email_verified for the user with the given email (case-insensitive match).
+func (r *UserRepo) SetEmailVerifiedByEmail(ctx context.Context, email string, verified bool) error {
+	query, args, err := r.Builder.
+		Update("users").
+		Set("email_verified", verified).
+		Where(squirrel.Expr("lower(email) = lower(?)", email)).
+		Suffix("RETURNING id").
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("UserRepo - SetEmailVerifiedByEmail - r.Builder: %w", err)
 	}
 
 	var updatedID int64
@@ -506,4 +562,96 @@ func (r *UserRepo) UpdateAvatar(ctx context.Context, id int64, avatarURL string)
 	}
 
 	return nil
+}
+
+// UpsertPendingRegistration сохраняет или обновляет заявку на регистрацию (email в нижнем регистре).
+func (r *UserRepo) UpsertPendingRegistration(ctx context.Context, p *entity.PendingRegistration) error {
+	p.Email = normEmail(p.Email)
+	const q = `
+INSERT INTO pending_registrations (email, login, password_hash, last_name, first_name, middle_name, phone, city, street, house, apartment, role)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+ON CONFLICT (email) DO UPDATE SET
+	login = EXCLUDED.login,
+	password_hash = EXCLUDED.password_hash,
+	last_name = EXCLUDED.last_name,
+	first_name = EXCLUDED.first_name,
+	middle_name = EXCLUDED.middle_name,
+	phone = EXCLUDED.phone,
+	city = EXCLUDED.city,
+	street = EXCLUDED.street,
+	house = EXCLUDED.house,
+	apartment = EXCLUDED.apartment,
+	role = EXCLUDED.role,
+	created_at = NOW()`
+	_, err := r.Pool.Exec(ctx, q,
+		p.Email, p.Login, p.PasswordHash, p.LastName, p.FirstName, p.MiddleName,
+		p.Phone, p.City, p.Street, p.House, p.Apartment, p.Role,
+	)
+	if err != nil {
+		return mapPgError(err)
+	}
+	return nil
+}
+
+// GetPendingByEmail возвращает заявку по email или nil, если нет строки.
+func (r *UserRepo) GetPendingByEmail(ctx context.Context, email string) (*entity.PendingRegistration, error) {
+	email = normEmail(email)
+	const q = `
+SELECT email, login, password_hash, last_name, first_name, middle_name, phone, city, street, house, apartment, role
+FROM pending_registrations WHERE email = $1`
+	row := r.Pool.QueryRow(ctx, q, email)
+	var p entity.PendingRegistration
+	var middleName sql.NullString
+	var apartment sql.NullString
+	if err := row.Scan(
+		&p.Email, &p.Login, &p.PasswordHash, &p.LastName, &p.FirstName, &middleName,
+		&p.Phone, &p.City, &p.Street, &p.House, &apartment, &p.Role,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if middleName.Valid {
+		p.MiddleName = middleName.String
+	}
+	if apartment.Valid {
+		p.Apartment = apartment.String
+	}
+	return &p, nil
+}
+
+// GetPendingByLogin — заявка по login (без учёта регистра).
+func (r *UserRepo) GetPendingByLogin(ctx context.Context, login string) (*entity.PendingRegistration, error) {
+	login = strings.TrimSpace(login)
+	const q = `
+SELECT email, login, password_hash, last_name, first_name, middle_name, phone, city, street, house, apartment, role
+FROM pending_registrations WHERE lower(login) = lower($1)`
+	row := r.Pool.QueryRow(ctx, q, login)
+	var p entity.PendingRegistration
+	var middleName sql.NullString
+	var apartment sql.NullString
+	if err := row.Scan(
+		&p.Email, &p.Login, &p.PasswordHash, &p.LastName, &p.FirstName, &middleName,
+		&p.Phone, &p.City, &p.Street, &p.House, &apartment, &p.Role,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if middleName.Valid {
+		p.MiddleName = middleName.String
+	}
+	if apartment.Valid {
+		p.Apartment = apartment.String
+	}
+	return &p, nil
+}
+
+// DeletePendingByEmail удаляет заявку после успешного создания пользователя.
+func (r *UserRepo) DeletePendingByEmail(ctx context.Context, email string) error {
+	email = normEmail(email)
+	_, err := r.Pool.Exec(ctx, `DELETE FROM pending_registrations WHERE email = $1`, email)
+	return err
 }

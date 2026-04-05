@@ -13,8 +13,9 @@ const (
 type User struct {
 	ID           int64  `json:"id"`
 	Login        string `json:"login"`
-	Email        string `json:"email"`
-	PasswordHash string `json:"-"` // never expose password hash
+	Email          string `json:"email"`
+	EmailVerified  bool   `json:"email_verified"`
+	PasswordHash   string `json:"-"` // never expose password hash
 
 	LastName   string `json:"last_name"`
 	FirstName  string `json:"first_name"`
