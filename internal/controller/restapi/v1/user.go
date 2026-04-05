@@ -11,12 +11,12 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	authmw "github.com/sday-kenta/backend/internal/controller/restapi/middleware"
 	"github.com/sday-kenta/backend/internal/controller/restapi/v1/request"
 	"github.com/sday-kenta/backend/internal/entity"
 	"github.com/sday-kenta/backend/internal/usecase"
 	"github.com/sday-kenta/backend/internal/usererr"
 	"github.com/sday-kenta/backend/pkg/logger"
-	"github.com/sday-kenta/backend/pkg/mailsender"
 	"github.com/sday-kenta/backend/pkg/objectstorage"
 )
 
@@ -34,6 +34,10 @@ func userErrorResponse(ctx *fiber.Ctx, err error) error {
 		return errorResponse(ctx, http.StatusBadRequest, "invalid role")
 	case errors.Is(err, usererr.ErrInvalidPhone):
 		return errorResponse(ctx, http.StatusBadRequest, err.Error())
+	case errors.Is(err, usererr.ErrPasswordTooShort):
+		return errorResponse(ctx, http.StatusBadRequest, err.Error())
+	case errors.Is(err, usererr.ErrEmailNotVerified):
+		return errorResponse(ctx, http.StatusForbidden, err.Error())
 	default:
 		return errorResponse(ctx, http.StatusInternalServerError, "database error")
 	}
@@ -72,8 +76,27 @@ type UsersV1 struct {
 	avatarBaseURL string
 }
 
+func currentAuthUser(ctx *fiber.Ctx) (authmw.AuthUser, error) {
+	requester, ok := authmw.CurrentUser(ctx)
+	if !ok {
+		return authmw.AuthUser{}, fmt.Errorf("authentication required")
+	}
+	return requester, nil
+}
+
+func ensureSelfOrAdmin(ctx *fiber.Ctx, targetUserID int64) (authmw.AuthUser, error) {
+	requester, err := currentAuthUser(ctx)
+	if err != nil {
+		return authmw.AuthUser{}, err
+	}
+	if !requester.IsAdmin() && requester.UserID != targetUserID {
+		return authmw.AuthUser{}, fmt.Errorf("access denied")
+	}
+	return requester, nil
+}
+
 // @Summary     Create user
-// @Description Create a new user
+// @Description Public registration endpoint. Creates a regular user; role and blocked status are not accepted from the request.
 // @ID          create-user
 // @Tags  	    users
 // @Accept      json
@@ -81,6 +104,7 @@ type UsersV1 struct {
 // @Param       request body request.CreateUser true "User data"
 // @Success     201 {object} entity.User
 // @Failure     400 {object} response.Error
+// @Failure     409 {object} response.Error
 // @Failure     500 {object} response.Error
 // @Router      /users [post]
 func (r *UsersV1) createUser(ctx *fiber.Ctx) error {
@@ -111,8 +135,6 @@ func (r *UsersV1) createUser(ctx *fiber.Ctx) error {
 			Street:     body.Street,
 			House:      body.House,
 			Apartment:  body.Apartment,
-			IsBlocked:  body.IsBlocked,
-			Role:       body.Role,
 		},
 		body.Password,
 	)
@@ -125,14 +147,18 @@ func (r *UsersV1) createUser(ctx *fiber.Ctx) error {
 }
 
 // @Summary     Delete user
-// @Description Delete user by ID
+// @Description Deletes a user by ID. Admin only.
 // @ID          delete-user
 // @Tags  	    users
 // @Accept      json
 // @Produce     json
 // @Param       id path int true "User ID"
+// @Security    BearerAuth
 // @Success     204
 // @Failure     400 {object} response.Error
+// @Failure     401 {object} response.Error
+// @Failure     403 {object} response.Error
+// @Failure     404 {object} response.Error
 // @Failure     500 {object} response.Error
 // @Router      /users/{id} [delete]
 func (r *UsersV1) deleteUser(ctx *fiber.Ctx) error {
@@ -150,20 +176,30 @@ func (r *UsersV1) deleteUser(ctx *fiber.Ctx) error {
 }
 
 // @Summary     Get user
-// @Description Get user by ID
+// @Description Returns the requested user. Administrators can read any user; a regular user can read only their own profile.
 // @ID          get-user
 // @Tags  	    users
 // @Accept      json
 // @Produce     json
 // @Param       id path int true "User ID"
+// @Security    BearerAuth
 // @Success     200 {object} entity.User
 // @Failure     400 {object} response.Error
+// @Failure     401 {object} response.Error
+// @Failure     403 {object} response.Error
+// @Failure     404 {object} response.Error
 // @Failure     500 {object} response.Error
 // @Router      /users/{id} [get]
 func (r *UsersV1) getUser(ctx *fiber.Ctx) error {
 	id, err := strconv.ParseInt(ctx.Params("id"), 10, 64)
 	if err != nil {
 		return errorResponse(ctx, http.StatusBadRequest, "invalid id")
+	}
+	if _, err = ensureSelfOrAdmin(ctx, id); err != nil {
+		if err.Error() == "authentication required" {
+			return errorResponse(ctx, http.StatusUnauthorized, err.Error())
+		}
+		return errorResponse(ctx, http.StatusForbidden, err.Error())
 	}
 
 	user, err := r.u.GetByID(ctx.UserContext(), id)
@@ -176,12 +212,15 @@ func (r *UsersV1) getUser(ctx *fiber.Ctx) error {
 }
 
 // @Summary     List users
-// @Description Get all users
+// @Description Returns all users. Admin only.
 // @ID          list-users
 // @Tags  	    users
 // @Accept      json
 // @Produce     json
+// @Security    BearerAuth
 // @Success     200 {array} entity.User
+// @Failure     401 {object} response.Error
+// @Failure     403 {object} response.Error
 // @Failure     500 {object} response.Error
 // @Router      /users [get]
 func (r *UsersV1) listUsers(ctx *fiber.Ctx) error {
@@ -196,21 +235,32 @@ func (r *UsersV1) listUsers(ctx *fiber.Ctx) error {
 }
 
 // @Summary     Update user
-// @Description Update user fields (without password)
+// @Description Updates user fields without password. Administrators can update any user; a regular user can update only their own profile and cannot change role or blocked status.
 // @ID          update-user
 // @Tags  	    users
 // @Accept      json
 // @Produce     json
 // @Param       id path int true "User ID"
 // @Param       request body request.UpdateUser true "User data"
+// @Security    BearerAuth
 // @Success     200 {object} entity.User
 // @Failure     400 {object} response.Error
+// @Failure     401 {object} response.Error
+// @Failure     403 {object} response.Error
+// @Failure     404 {object} response.Error
 // @Failure     500 {object} response.Error
 // @Router      /users/{id} [put]
 func (r *UsersV1) updateUser(ctx *fiber.Ctx) error {
 	id, err := strconv.ParseInt(ctx.Params("id"), 10, 64)
 	if err != nil {
 		return errorResponse(ctx, http.StatusBadRequest, "invalid id")
+	}
+	requester, err := ensureSelfOrAdmin(ctx, id)
+	if err != nil {
+		if err.Error() == "authentication required" {
+			return errorResponse(ctx, http.StatusUnauthorized, err.Error())
+		}
+		return errorResponse(ctx, http.StatusForbidden, err.Error())
 	}
 
 	var body request.UpdateUser
@@ -227,6 +277,18 @@ func (r *UsersV1) updateUser(ctx *fiber.Ctx) error {
 		return errorResponse(ctx, http.StatusBadRequest, formatValidationError(err))
 	}
 
+	role := body.Role
+	isBlocked := body.IsBlocked
+	if !requester.IsAdmin() {
+		existing, getErr := r.u.GetByID(ctx.UserContext(), id)
+		if getErr != nil {
+			r.l.Error(getErr, "restapi - v1 - updateUser - GetByID")
+			return userErrorResponse(ctx, getErr)
+		}
+		role = existing.Role
+		isBlocked = existing.IsBlocked
+	}
+
 	user, err := r.u.Update(
 		ctx.UserContext(),
 		entity.User{
@@ -241,8 +303,8 @@ func (r *UsersV1) updateUser(ctx *fiber.Ctx) error {
 			Street:     body.Street,
 			House:      body.House,
 			Apartment:  body.Apartment,
-			IsBlocked:  body.IsBlocked,
-			Role:       body.Role,
+			IsBlocked:  isBlocked,
+			Role:       role,
 		},
 	)
 	if err != nil {
@@ -254,21 +316,31 @@ func (r *UsersV1) updateUser(ctx *fiber.Ctx) error {
 }
 
 // @Summary     Upload user avatar
-// @Description Upload avatar image (JPEG/PNG) for a user
+// @Description Uploads an avatar image (JPEG/PNG) for a user. Administrators can upload for any user; a regular user can upload only for themselves.
 // @ID          upload-avatar
 // @Tags  	    users
 // @Accept      multipart/form-data
 // @Produce     json
 // @Param       id     path     int   true  "User ID"
 // @Param       avatar formData file  true  "Avatar image (JPEG/PNG), max 2MB"
+// @Security    BearerAuth
 // @Success     204
 // @Failure     400 {object} response.Error
+// @Failure     401 {object} response.Error
+// @Failure     403 {object} response.Error
+// @Failure     404 {object} response.Error
 // @Failure     500 {object} response.Error
 // @Router      /users/{id}/avatar [post]
 func (r *UsersV1) uploadAvatar(ctx *fiber.Ctx) error {
 	id, err := strconv.ParseInt(ctx.Params("id"), 10, 64)
 	if err != nil {
 		return errorResponse(ctx, http.StatusBadRequest, "invalid id")
+	}
+	if _, err = ensureSelfOrAdmin(ctx, id); err != nil {
+		if err.Error() == "authentication required" {
+			return errorResponse(ctx, http.StatusUnauthorized, err.Error())
+		}
+		return errorResponse(ctx, http.StatusForbidden, err.Error())
 	}
 
 	fileHeader, err := ctx.FormFile("avatar")
@@ -350,16 +422,49 @@ func (r *UsersV1) sendPasswordResetCode(ctx *fiber.Ctx) error {
 		return errorResponse(ctx, http.StatusBadRequest, formatValidationError(err))
 	}
 
-	code := mailsender.RandomRumber().String()
-	if err := mailsender.SendMail(
-		"Password Recovery 'SdayKenta' ",
-		"Your code is "+code,
-		[]string{body.Email},
-	); err != nil {
-		r.l.Error(err, "restapi - v1 - sendPasswordResetCode - SendMail")
-		return errorResponse(ctx, http.StatusInternalServerError, "failed to send email")
+	if err := r.u.SendPasswordResetCode(ctx.UserContext(), body.Email); err != nil {
+		r.l.Error(err, "restapi - v1 - sendPasswordResetCode")
+		return userErrorResponse(ctx, err)
 	}
 
+	return ctx.SendStatus(http.StatusNoContent)
+}
+
+// @Summary     Reset password with code
+// @Description Verifies the code from email and sets a new password
+// @ID          reset-password-with-code
+// @Tags  	    users
+// @Accept      json
+// @Produce     json
+// @Param       request body request.ResetPasswordWithCode true "Email, code and new password"
+// @Success     204
+// @Failure     400 {object} response.Error
+// @Failure     404 {object} response.Error
+// @Failure     500 {object} response.Error
+// @Router      /users/password-reset/reset [post]
+func (r *UsersV1) resetPasswordWithCode(ctx *fiber.Ctx) error {
+	var body request.ResetPasswordWithCode
+	if err := ctx.BodyParser(&body); err != nil {
+		r.l.Error(err, "restapi - v1 - resetPasswordWithCode")
+		return errorResponse(ctx, http.StatusBadRequest, "invalid request body")
+	}
+	if err := r.v.Struct(body); err != nil {
+		r.l.Error(err, "restapi - v1 - resetPasswordWithCode")
+		return errorResponse(ctx, http.StatusBadRequest, formatValidationError(err))
+	}
+	if err := r.u.ResetPasswordWithCode(ctx.UserContext(), body.Email, body.Code, body.NewPassword); err != nil {
+		r.l.Error(err, "restapi - v1 - resetPasswordWithCode")
+		switch {
+		case errors.Is(err, usererr.ErrInvalidCode), errors.Is(err, usererr.ErrCodeExpired):
+			return errorResponse(ctx, http.StatusBadRequest, err.Error())
+		case errors.Is(err, usererr.ErrPasswordTooShort):
+			return errorResponse(ctx, http.StatusBadRequest, err.Error())
+		case errors.Is(err, usererr.ErrNotFound):
+			return errorResponse(ctx, http.StatusNotFound, "user not found")
+		default:
+			return userErrorResponse(ctx, err)
+		}
+	}
 	return ctx.SendStatus(http.StatusNoContent)
 }
 
@@ -433,7 +538,7 @@ func (r *UsersV1) verifyEmailVerificationCode(ctx *fiber.Ctx) error {
 }
 
 // @Summary     Login
-// @Description Login by login/email/phone + password
+// @Description Legacy login endpoint. Authenticates by login/email/phone + password and returns the user profile without issuing a JWT token. Prefer /auth/login for JWT-based auth.
 // @ID          users-login
 // @Tags  	    users
 // @Accept      json
@@ -465,6 +570,8 @@ func (r *UsersV1) login(ctx *fiber.Ctx) error {
 			return errorResponse(ctx, http.StatusUnauthorized, "invalid credentials")
 		case errors.Is(err, usererr.ErrUserBlocked):
 			return errorResponse(ctx, http.StatusForbidden, "user is blocked")
+		case errors.Is(err, usererr.ErrEmailNotVerified):
+			return errorResponse(ctx, http.StatusForbidden, err.Error())
 		default:
 			return userErrorResponse(ctx, err)
 		}

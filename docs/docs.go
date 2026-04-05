@@ -17,7 +17,7 @@ const docTemplate = `{
     "paths": {
         "/auth/login": {
             "post": {
-                "description": "Login by login/email/phone + password",
+                "description": "Login by login/email/phone + password. Returns a JWT access token and the authenticated user profile.",
                 "consumes": [
                     "application/json"
                 ],
@@ -42,9 +42,9 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "JWT access token and authenticated user",
                         "schema": {
-                            "$ref": "#/definitions/entity.User"
+                            "$ref": "#/definitions/response.AuthLogin"
                         }
                     },
                     "400": {
@@ -105,7 +105,12 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Creates a new category. Category icons are uploaded separately via multipart/form-data endpoint.",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a new category. Category icons are uploaded separately via multipart/form-data endpoint. Admin only.",
                 "consumes": [
                     "application/json"
                 ],
@@ -118,14 +123,6 @@ const docTemplate = `{
                 "summary": "Create a category",
                 "operationId": "create-category",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "default": "admin",
-                        "description": "User role (must be admin)",
-                        "name": "X-User-Role",
-                        "in": "header",
-                        "required": true
-                    },
                     {
                         "description": "Category payload",
                         "name": "request",
@@ -146,6 +143,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Invalid request body",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Authentication required",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }
@@ -217,6 +220,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Soft-deletes a category by ID. Admin only.",
                 "consumes": [
                     "application/json"
@@ -236,14 +244,6 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "default": "admin",
-                        "description": "User role (must be admin)",
-                        "name": "X-User-Role",
-                        "in": "header",
-                        "required": true
                     }
                 ],
                 "responses": {
@@ -256,6 +256,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Invalid ID format",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Authentication required",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }
@@ -281,7 +287,12 @@ const docTemplate = `{
                 }
             },
             "patch": {
-                "description": "Partially updates a category by ID. Category icons are managed via dedicated upload/delete endpoints.",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Partially updates a category by ID. Category icons are managed via dedicated upload/delete endpoints. Admin only.",
                 "consumes": [
                     "application/json"
                 ],
@@ -299,14 +310,6 @@ const docTemplate = `{
                         "description": "Category ID",
                         "name": "id",
                         "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "default": "admin",
-                        "description": "User role (must be admin)",
-                        "name": "X-User-Role",
-                        "in": "header",
                         "required": true
                     },
                     {
@@ -329,6 +332,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Invalid ID or request body",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Authentication required",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }
@@ -356,6 +365,11 @@ const docTemplate = `{
         },
         "/categories/{id}/icon": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Uploads a category icon to MinIO/S3 and stores its public URL in icon_url. Accepts PNG/JPG up to 2MB. Admin only.",
                 "consumes": [
                     "multipart/form-data"
@@ -377,14 +391,6 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "string",
-                        "default": "admin",
-                        "description": "User role (must be admin)",
-                        "name": "X-User-Role",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
                         "type": "file",
                         "description": "Category icon (PNG/JPG, max 2MB)",
                         "name": "icon",
@@ -402,6 +408,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }
@@ -427,6 +439,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Deletes a category icon from MinIO/S3 and clears icon_url. Admin only.",
                 "consumes": [
                     "application/json"
@@ -446,14 +463,6 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "default": "admin",
-                        "description": "User role (must be admin)",
-                        "name": "X-User-Role",
-                        "in": "header",
-                        "required": true
                     }
                 ],
                 "responses": {
@@ -462,6 +471,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }
@@ -534,7 +549,12 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Создает новое сообщение об инциденте. До внедрения JWT автор определяется по заголовку X-User-ID.",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Создает новое сообщение об инциденте для авторизованного пользователя. Если статус не указан или передан как review/published, инцидент сохраняется в статусе review.",
                 "consumes": [
                     "application/json"
                 ],
@@ -547,13 +567,6 @@ const docTemplate = `{
                 "summary": "Создать инцидент",
                 "operationId": "create-incident",
                 "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "ID текущего пользователя",
-                        "name": "X-User-ID",
-                        "in": "header",
-                        "required": true
-                    },
                     {
                         "description": "Данные инцидента",
                         "name": "request",
@@ -577,6 +590,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Error"
                         }
                     },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
@@ -594,7 +613,7 @@ const docTemplate = `{
         },
         "/incidents/{id}": {
             "get": {
-                "description": "Возвращает детальную карточку инцидента. Доступно только автору инцидента или администратору.",
+                "description": "Возвращает детальную карточку инцидента. Published-инциденты доступны всем. Draft и review доступны только автору или администратору.",
                 "consumes": [
                     "application/json"
                 ],
@@ -615,17 +634,9 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "integer",
-                        "description": "ID текущего пользователя",
-                        "name": "X-User-ID",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
                         "type": "string",
-                        "default": "user",
-                        "description": "Роль текущего пользователя",
-                        "name": "X-User-Role",
+                        "description": "Bearer access token. Нужен для доступа к draft/review инцидентам.",
+                        "name": "Authorization",
                         "in": "header"
                     }
                 ],
@@ -638,6 +649,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }
@@ -663,6 +680,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Удаляет инцидент и связанные с ним фотографии. Доступно только автору или администратору.",
                 "consumes": [
                     "application/json"
@@ -682,20 +704,6 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "ID текущего пользователя",
-                        "name": "X-User-ID",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "default": "user",
-                        "description": "Роль текущего пользователя",
-                        "name": "X-User-Role",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -704,6 +712,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }
@@ -729,7 +743,12 @@ const docTemplate = `{
                 }
             },
             "patch": {
-                "description": "Обновляет сообщение об инциденте. Доступно только автору или администратору.",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Обновляет сообщение об инциденте. Доступно только автору или администратору. Статус published может установить только администратор.",
                 "consumes": [
                     "application/json"
                 ],
@@ -750,20 +769,6 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "integer",
-                        "description": "ID текущего пользователя",
-                        "name": "X-User-ID",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "default": "user",
-                        "description": "Роль текущего пользователя",
-                        "name": "X-User-Role",
-                        "in": "header"
-                    },
-                    {
                         "description": "Поля для обновления инцидента",
                         "name": "request",
                         "in": "body",
@@ -782,6 +787,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }
@@ -809,7 +820,12 @@ const docTemplate = `{
         },
         "/incidents/{id}/document/download": {
             "get": {
-                "description": "Возвращает HTML-документ обращения по инциденту с Content-Disposition attachment.",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает HTML-документ обращения по инциденту с Content-Disposition attachment. Доступно только автору или администратору.",
                 "consumes": [
                     "application/json"
                 ],
@@ -828,20 +844,6 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "ID текущего пользователя",
-                        "name": "X-User-ID",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "default": "user",
-                        "description": "Роль текущего пользователя",
-                        "name": "X-User-Role",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -853,6 +855,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }
@@ -880,7 +888,12 @@ const docTemplate = `{
         },
         "/incidents/{id}/document/email": {
             "post": {
-                "description": "Отправляет документ обращения на указанный email. Если email не передан, используется email автора инцидента.",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Отправляет документ обращения на указанный email. Если email не передан, используется email автора инцидента. Доступно только автору или администратору.",
                 "consumes": [
                     "application/json"
                 ],
@@ -901,20 +914,6 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "integer",
-                        "description": "ID текущего пользователя",
-                        "name": "X-User-ID",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "default": "user",
-                        "description": "Роль текущего пользователя",
-                        "name": "X-User-Role",
-                        "in": "header"
-                    },
-                    {
                         "description": "Email получателя; можно не передавать",
                         "name": "request",
                         "in": "body",
@@ -932,6 +931,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }
@@ -959,7 +964,12 @@ const docTemplate = `{
         },
         "/incidents/{id}/document/print": {
             "get": {
-                "description": "Возвращает HTML-документ обращения с inline Content-Disposition для печати на клиенте.",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает HTML-документ обращения с inline Content-Disposition для печати на клиенте. Доступно только автору или администратору.",
                 "consumes": [
                     "application/json"
                 ],
@@ -978,20 +988,6 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "ID текущего пользователя",
-                        "name": "X-User-ID",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "default": "user",
-                        "description": "Роль текущего пользователя",
-                        "name": "X-User-Role",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -1003,6 +999,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }
@@ -1030,7 +1032,12 @@ const docTemplate = `{
         },
         "/incidents/{id}/photos": {
             "post": {
-                "description": "Загружает одну или несколько фотографий инцидента. Используй multipart/form-data с повторяемым полем photos.",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Загружает одну или несколько фотографий инцидента. Используй multipart/form-data с повторяемым полем photos. Доступно только автору или администратору.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -1049,20 +1056,6 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "ID текущего пользователя",
-                        "name": "X-User-ID",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "default": "user",
-                        "description": "Роль текущего пользователя",
-                        "name": "X-User-Role",
-                        "in": "header"
                     },
                     {
                         "type": "file",
@@ -1084,6 +1077,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }
@@ -1111,6 +1110,11 @@ const docTemplate = `{
         },
         "/incidents/{id}/photos/{photoId}": {
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Удаляет фотографию инцидента. Доступно только автору или администратору.",
                 "consumes": [
                     "application/json"
@@ -1137,20 +1141,6 @@ const docTemplate = `{
                         "name": "photoId",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "ID текущего пользователя",
-                        "name": "X-User-ID",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "default": "user",
-                        "description": "Роль текущего пользователя",
-                        "name": "X-User-Role",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -1159,6 +1149,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }
@@ -1186,6 +1182,11 @@ const docTemplate = `{
         },
         "/maps/reload-cities": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Reloads in-memory supported cities from zones table. Admin only.",
                 "consumes": [
                     "application/json"
@@ -1197,16 +1198,6 @@ const docTemplate = `{
                     "maps"
                 ],
                 "summary": "Reload supported cities cache",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "default": "admin",
-                        "description": "User role (must be 'admin')",
-                        "name": "X-User-Role",
-                        "in": "header",
-                        "required": true
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "Reload successful",
@@ -1215,6 +1206,12 @@ const docTemplate = `{
                             "additionalProperties": {
                                 "type": "string"
                             }
+                        }
+                    },
+                    "401": {
+                        "description": "Authentication required",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
                         }
                     },
                     "403": {
@@ -1365,7 +1362,12 @@ const docTemplate = `{
         },
         "/my/incidents": {
             "get": {
-                "description": "Возвращает список инцидентов текущего пользователя, включая черновики и опубликованные сообщения.",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Возвращает список инцидентов текущего пользователя, включая draft, review и published.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1379,15 +1381,9 @@ const docTemplate = `{
                 "operationId": "list-my-incidents",
                 "parameters": [
                     {
-                        "type": "integer",
-                        "description": "ID текущего пользователя",
-                        "name": "X-User-ID",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
                         "enum": [
                             "draft",
+                            "review",
                             "published",
                             "all"
                         ],
@@ -1419,6 +1415,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Error"
                         }
                     },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -1430,7 +1432,12 @@ const docTemplate = `{
         },
         "/users": {
             "get": {
-                "description": "Get all users",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns all users. Admin only.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1452,6 +1459,18 @@ const docTemplate = `{
                             }
                         }
                     },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -1461,7 +1480,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Create a new user",
+                "description": "Public registration endpoint. Creates a regular user; role and blocked status are not accepted from the request.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1493,6 +1512,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }
@@ -1596,7 +1621,7 @@ const docTemplate = `{
         },
         "/users/login": {
             "post": {
-                "description": "Login by login/email/phone + password",
+                "description": "Legacy login endpoint. Authenticates by login/email/phone + password and returns the user profile without issuing a JWT token. Prefer /auth/login for JWT-based auth.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1699,7 +1724,12 @@ const docTemplate = `{
         },
         "/users/{id}": {
             "get": {
-                "description": "Get user by ID",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the requested user. Administrators can read any user; a regular user can read only their own profile.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1733,6 +1763,24 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Error"
                         }
                     },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -1742,7 +1790,12 @@ const docTemplate = `{
                 }
             },
             "put": {
-                "description": "Update user fields (without password)",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates user fields without password. Administrators can update any user; a regular user can update only their own profile and cannot change role or blocked status.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1785,6 +1838,24 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Error"
                         }
                     },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -1794,7 +1865,12 @@ const docTemplate = `{
                 }
             },
             "delete": {
-                "description": "Delete user by ID",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Deletes a user by ID. Admin only.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1825,6 +1901,24 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Error"
                         }
                     },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -1836,7 +1930,12 @@ const docTemplate = `{
         },
         "/users/{id}/avatar": {
             "post": {
-                "description": "Upload avatar image (JPEG/PNG) for a user",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Uploads an avatar image (JPEG/PNG) for a user. Administrators can upload for any user; a regular user can upload only for themselves.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -1870,6 +1969,24 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }
@@ -1996,9 +2113,10 @@ const docTemplate = `{
                     "type": "string",
                     "enum": [
                         "draft",
+                        "review",
                         "published"
                     ],
-                    "example": "published"
+                    "example": "review"
                 },
                 "street": {
                     "type": "string",
@@ -2022,7 +2140,6 @@ const docTemplate = `{
                 "login",
                 "password",
                 "phone",
-                "role",
                 "street"
             ],
             "properties": {
@@ -2046,10 +2163,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "1"
                 },
-                "is_blocked": {
-                    "type": "boolean",
-                    "example": false
-                },
                 "last_name": {
                     "type": "string",
                     "example": "Иванов"
@@ -2064,20 +2177,12 @@ const docTemplate = `{
                 },
                 "password": {
                     "type": "string",
+                    "minLength": 6,
                     "example": "qwerty123"
                 },
                 "phone": {
                     "type": "string",
                     "example": "+79991234567"
-                },
-                "role": {
-                    "type": "string",
-                    "enum": [
-                        "user",
-                        "admin",
-                        "premium"
-                    ],
-                    "example": "user"
                 },
                 "street": {
                     "type": "string",
@@ -2192,9 +2297,10 @@ const docTemplate = `{
                     "type": "string",
                     "enum": [
                         "draft",
+                        "review",
                         "published"
                     ],
-                    "example": "draft"
+                    "example": "review"
                 },
                 "street": {
                     "type": "string",
@@ -2299,6 +2405,24 @@ const docTemplate = `{
                         "change_email"
                     ],
                     "example": "register"
+                }
+            }
+        },
+        "response.AuthLogin": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "token_type": {
+                    "type": "string",
+                    "example": "Bearer"
+                },
+                "user": {
+                    "$ref": "#/definitions/entity.User"
                 }
             }
         },
@@ -2480,6 +2604,14 @@ const docTemplate = `{
                 }
             }
         }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "description": "JWT access token with Bearer prefix. Example: \"Bearer eyJhbGciOi...\"",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
     }
 }`
 
@@ -2490,7 +2622,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/v1",
 	Schemes:          []string{},
 	Title:            "Backend API",
-	Description:      "Combined users and maps service API",
+	Description:      "Service for conscientious citizens",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

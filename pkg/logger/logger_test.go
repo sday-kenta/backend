@@ -18,7 +18,7 @@ var errTest = errors.New("test error")
 
 // newBufferedLogger. Helper to replace underlying zerolog writer with a buffer and capture logs.
 func newBufferedLogger(level string) (*Logger, *bytes.Buffer) {
-	l := New(level)
+	l := New(level, false)
 	buf := &bytes.Buffer{}
 	// Recreate the zerolog.Logger to write into buffer while keeping similar options
 	// We keep the same skip frame count so caller field exists, but we don't assert its value
@@ -43,7 +43,7 @@ func TestNewSetsGlobalLevel(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		l := New(tc.in)
+		l := New(tc.in, false)
 
 		if l == nil || l.logger == nil {
 			t.Fatalf("New(%q) returned nil logger", tc.in)
@@ -52,6 +52,38 @@ func TestNewSetsGlobalLevel(t *testing.T) {
 		if got := zerolog.GlobalLevel(); got != tc.want {
 			t.Fatalf("New(%q) global level = %v, want %v", tc.in, got, tc.want)
 		}
+	}
+}
+
+func TestNewPrettyModeBuildsLogger(t *testing.T) {
+	t.Parallel()
+
+	l := New("debug", true)
+	if l == nil || l.logger == nil {
+		t.Fatal("New pretty mode returned nil logger")
+	}
+}
+
+func TestPrettyJSONWriter_WritesIndentedJSON(t *testing.T) {
+	t.Parallel()
+
+	buf := &bytes.Buffer{}
+	w := &prettyJSONWriter{out: buf}
+
+	_, err := w.Write([]byte("{\"level\":\"info\",\"message\":\"hello\"}\n"))
+	if err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "{\n") {
+		t.Fatalf("expected multi-line JSON output, got: %s", out)
+	}
+	if !strings.Contains(out, "  \"level\": \"info\"") {
+		t.Fatalf("expected indented level field, got: %s", out)
+	}
+	if !strings.Contains(out, "  \"message\": \"hello\"") {
+		t.Fatalf("expected indented message field, got: %s", out)
 	}
 }
 
@@ -77,6 +109,33 @@ func TestInfoAndWarn_LogMessageWithAndWithoutArgs(t *testing.T) {
 
 	if !strings.Contains(out, "\"level\":\"warn\"") || !strings.Contains(out, "warn 7") {
 		t.Fatalf("warn log not found in output: %s", out)
+	}
+}
+
+func TestInfoFields_LogsStructuredFields(t *testing.T) {
+	t.Parallel()
+
+	l, buf := newBufferedLogger("info")
+	l.InfoFields("http request", map[string]interface{}{
+		"method": "POST",
+		"status": 200,
+		"body": map[string]interface{}{
+			"identifier": "admin",
+		},
+	})
+
+	out := buf.String()
+	if !strings.Contains(out, "\"message\":\"http request\"") {
+		t.Fatalf("message not found in output: %s", out)
+	}
+	if !strings.Contains(out, "\"method\":\"POST\"") {
+		t.Fatalf("method field not found in output: %s", out)
+	}
+	if !strings.Contains(out, "\"status\":200") {
+		t.Fatalf("status field not found in output: %s", out)
+	}
+	if !strings.Contains(out, "\"identifier\":\"admin\"") {
+		t.Fatalf("nested body field not found in output: %s", out)
 	}
 }
 
