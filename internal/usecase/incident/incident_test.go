@@ -194,6 +194,30 @@ func (s userRepoStub) UpdateAvatar(_ context.Context, _ int64, _ string) error {
 	return nil
 }
 
+func (s userRepoStub) UpdatePasswordHashByEmail(_ context.Context, _, _ string) error {
+	return nil
+}
+
+func (s userRepoStub) SetEmailVerifiedByEmail(_ context.Context, _ string, _ bool) error {
+	return nil
+}
+
+func (s userRepoStub) UpsertPendingRegistration(_ context.Context, _ *entity.PendingRegistration) error {
+	return nil
+}
+
+func (s userRepoStub) GetPendingByEmail(_ context.Context, _ string) (*entity.PendingRegistration, error) {
+	return nil, nil
+}
+
+func (s userRepoStub) GetPendingByLogin(_ context.Context, _ string) (*entity.PendingRegistration, error) {
+	return nil, nil
+}
+
+func (s userRepoStub) DeletePendingByEmail(_ context.Context, _ string) error {
+	return nil
+}
+
 type categoryRepoStub struct{}
 
 func (categoryRepoStub) GetAll(_ context.Context) ([]entity.Category, error) {

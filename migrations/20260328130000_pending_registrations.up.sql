@@ -13,6 +13,3 @@ CREATE TABLE IF NOT EXISTS pending_registrations (
     role          VARCHAR(50)  NOT NULL DEFAULT 'user',
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
-
--- Нормализация email в кодах (сопоставление без учёта регистра)
-UPDATE email_verification_codes SET email = lower(trim(email)) WHERE email IS NOT NULL;
