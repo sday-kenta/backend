@@ -21,7 +21,7 @@ import (
 )
 
 func Run(cfg *config.Config) { //nolint: gocyclo,cyclop,funlen,gocritic,nolintlint
-	l := logger.New(cfg.Log.Level)
+	l := logger.New(cfg.Log.Level, cfg.Log.Pretty)
 
 	pg, err := postgres.New(cfg.PG.URL, postgres.MaxPoolSize(cfg.PG.PoolMax))
 	if err != nil {

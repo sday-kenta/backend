@@ -56,7 +56,11 @@ type (
 	}
 
 	Log struct {
-		Level string `env:"LOG_LEVEL,required"`
+		Level               string `env:"LOG_LEVEL,required"`
+		Pretty              bool   `env:"LOG_PRETTY" envDefault:"false"`
+		HTTPLogHeaders      bool   `env:"HTTP_LOG_HEADERS" envDefault:"false"`
+		HTTPLogBody         bool   `env:"HTTP_LOG_BODY" envDefault:"false"`
+		HTTPLogBodyMaxBytes int    `env:"HTTP_LOG_BODY_MAX_BYTES" envDefault:"4096"`
 	}
 
 	PG struct {
