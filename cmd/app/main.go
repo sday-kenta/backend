@@ -1,8 +1,12 @@
 // @title       Backend API
-// @description Combined users and maps service API
+// @description Service for conscientious citizens
 // @version     1.0
 // @host        localhost:8080
 // @BasePath    /v1
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description JWT access token with Bearer prefix. Example: "Bearer eyJhbGciOi..."
 package main
 
 import (

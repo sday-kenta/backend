@@ -29,15 +29,6 @@ func categoryErrorResponse(ctx *fiber.Ctx, err error) error {
 	}
 }
 
-// requireAdmin - middleware для проверки прав администратора.
-func (r *V1) requireAdmin(ctx *fiber.Ctx) error {
-	role := ctx.Get("X-User-Role")
-	if role != "admin" {
-		return errorResponse(ctx, http.StatusForbidden, "access denied: admin role required")
-	}
-	return ctx.Next()
-}
-
 // @Summary     List categories
 // @Description Returns all active categories. Category icon URLs are returned in the icon_url field when an icon is uploaded.
 // @ID          list-categories
@@ -85,15 +76,16 @@ func (r *V1) getCategoryByID(ctx *fiber.Ctx) error {
 }
 
 // @Summary     Create a category
-// @Description Creates a new category. Category icons are uploaded separately via multipart/form-data endpoint.
+// @Description Creates a new category. Category icons are uploaded separately via multipart/form-data endpoint. Admin only.
 // @ID          create-category
 // @Tags        categories
 // @Accept      json
 // @Produce     json
-// @Param       X-User-Role header string true "User role (must be admin)" default(admin)
 // @Param       request body request.CreateCategory true "Category payload"
+// @Security    BearerAuth
 // @Success     201 {object} map[string]interface{} "status + created category"
 // @Failure     400 {object} response.Error "Invalid request body"
+// @Failure     401 {object} response.Error "Authentication required"
 // @Failure     403 {object} response.Error "Access denied"
 // @Failure     500 {object} response.Error
 // @Router      /categories [post]
@@ -120,16 +112,17 @@ func (r *V1) createCategory(ctx *fiber.Ctx) error {
 }
 
 // @Summary     Update a category
-// @Description Partially updates a category by ID. Category icons are managed via dedicated upload/delete endpoints.
+// @Description Partially updates a category by ID. Category icons are managed via dedicated upload/delete endpoints. Admin only.
 // @ID          update-category
 // @Tags        categories
 // @Accept      json
 // @Produce     json
 // @Param       id path int true "Category ID"
-// @Param       X-User-Role header string true "User role (must be admin)" default(admin)
 // @Param       request body request.UpdateCategory true "Category fields to update"
+// @Security    BearerAuth
 // @Success     200 {object} map[string]interface{} "status + updated category"
 // @Failure     400 {object} response.Error "Invalid ID or request body"
+// @Failure     401 {object} response.Error "Authentication required"
 // @Failure     403 {object} response.Error "Access denied"
 // @Failure     404 {object} response.Error "Category not found"
 // @Failure     500 {object} response.Error
@@ -162,10 +155,11 @@ func (r *V1) updateCategory(ctx *fiber.Ctx) error {
 // @Accept      multipart/form-data
 // @Produce     json
 // @Param       id path int true "Category ID"
-// @Param       X-User-Role header string true "User role (must be admin)" default(admin)
 // @Param       icon formData file true "Category icon (PNG/JPG, max 2MB)"
+// @Security    BearerAuth
 // @Success     200 {object} map[string]interface{} "status + updated category"
 // @Failure     400 {object} response.Error
+// @Failure     401 {object} response.Error
 // @Failure     403 {object} response.Error
 // @Failure     404 {object} response.Error
 // @Failure     500 {object} response.Error
@@ -247,9 +241,10 @@ func (r *V1) uploadCategoryIcon(ctx *fiber.Ctx) error {
 // @Accept      json
 // @Produce     json
 // @Param       id path int true "Category ID"
-// @Param       X-User-Role header string true "User role (must be admin)" default(admin)
+// @Security    BearerAuth
 // @Success     204
 // @Failure     400 {object} response.Error
+// @Failure     401 {object} response.Error
 // @Failure     403 {object} response.Error
 // @Failure     404 {object} response.Error
 // @Failure     500 {object} response.Error
@@ -291,9 +286,10 @@ func (r *V1) deleteCategoryIcon(ctx *fiber.Ctx) error {
 // @Accept      json
 // @Produce     json
 // @Param       id path int true "Category ID"
-// @Param       X-User-Role header string true "User role (must be admin)" default(admin)
+// @Security    BearerAuth
 // @Success     200 {object} map[string]interface{} "Success message"
 // @Failure     400 {object} response.Error "Invalid ID format"
+// @Failure     401 {object} response.Error "Authentication required"
 // @Failure     403 {object} response.Error "Access denied"
 // @Failure     404 {object} response.Error "Category not found"
 // @Failure     500 {object} response.Error

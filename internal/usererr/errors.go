@@ -12,5 +12,7 @@ var (
 	ErrUserBlocked        = errors.New("user is blocked")
 	ErrInvalidCode        = errors.New("invalid code")
 	ErrCodeExpired   = errors.New("code expired")
-	ErrInvalidPhone  = errors.New("phone must be in format +7 (XXX) XXX-XX-XX (11 digits only)")
+	ErrInvalidPhone      = errors.New("phone must be in format +7 (XXX) XXX-XX-XX (11 digits only)")
+	ErrPasswordTooShort  = errors.New("password must be at least 6 characters")
+	ErrEmailNotVerified  = errors.New("email not verified")
 )

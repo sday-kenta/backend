@@ -74,8 +74,9 @@ definitions:
       status:
         enum:
         - draft
+        - review
         - published
-        example: published
+        example: review
         type: string
       street:
         example: проспект Ленина
@@ -106,9 +107,6 @@ definitions:
       house:
         example: "1"
         type: string
-      is_blocked:
-        example: false
-        type: boolean
       last_name:
         example: Иванов
         type: string
@@ -120,16 +118,10 @@ definitions:
         type: string
       password:
         example: qwerty123
+        minLength: 6
         type: string
       phone:
         example: "+79991234567"
-        type: string
-      role:
-        enum:
-        - user
-        - admin
-        - premium
-        example: user
         type: string
       street:
         example: Тверская
@@ -143,7 +135,6 @@ definitions:
     - login
     - password
     - phone
-    - role
     - street
     type: object
   request.Login:
@@ -222,8 +213,9 @@ definitions:
       status:
         enum:
         - draft
+        - review
         - published
-        example: draft
+        example: review
         type: string
       street:
         example: проспект Ленина
@@ -304,6 +296,18 @@ definitions:
     - code
     - email
     - purpose
+    type: object
+  response.AuthLogin:
+    properties:
+      access_token:
+        type: string
+      expires_at:
+        type: string
+      token_type:
+        example: Bearer
+        type: string
+      user:
+        $ref: '#/definitions/entity.User'
     type: object
   response.Error:
     properties:
@@ -435,7 +439,7 @@ definitions:
 host: localhost:8080
 info:
   contact: {}
-  description: Combined users and maps service API
+  description: Service for conscientious citizens
   title: Backend API
   version: "1.0"
 paths:
@@ -443,7 +447,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Login by login/email/phone + password
+      description: Login by login/email/phone + password. Returns a JWT access token
+        and the authenticated user profile.
       operationId: login
       parameters:
       - description: Credentials
@@ -456,9 +461,9 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: JWT access token and authenticated user
           schema:
-            $ref: '#/definitions/entity.User'
+            $ref: '#/definitions/response.AuthLogin'
         "400":
           description: Bad Request
           schema:
@@ -504,15 +509,9 @@ paths:
       consumes:
       - application/json
       description: Creates a new category. Category icons are uploaded separately
-        via multipart/form-data endpoint.
+        via multipart/form-data endpoint. Admin only.
       operationId: create-category
       parameters:
-      - default: admin
-        description: User role (must be admin)
-        in: header
-        name: X-User-Role
-        required: true
-        type: string
       - description: Category payload
         in: body
         name: request
@@ -531,6 +530,10 @@ paths:
           description: Invalid request body
           schema:
             $ref: '#/definitions/response.Error'
+        "401":
+          description: Authentication required
+          schema:
+            $ref: '#/definitions/response.Error'
         "403":
           description: Access denied
           schema:
@@ -539,6 +542,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Error'
+      security:
+      - BearerAuth: []
       summary: Create a category
       tags:
       - categories
@@ -554,12 +559,6 @@ paths:
         name: id
         required: true
         type: integer
-      - default: admin
-        description: User role (must be admin)
-        in: header
-        name: X-User-Role
-        required: true
-        type: string
       produces:
       - application/json
       responses:
@@ -570,6 +569,10 @@ paths:
             type: object
         "400":
           description: Invalid ID format
+          schema:
+            $ref: '#/definitions/response.Error'
+        "401":
+          description: Authentication required
           schema:
             $ref: '#/definitions/response.Error'
         "403":
@@ -584,6 +587,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Error'
+      security:
+      - BearerAuth: []
       summary: Delete a category
       tags:
       - categories
@@ -626,7 +631,7 @@ paths:
       consumes:
       - application/json
       description: Partially updates a category by ID. Category icons are managed
-        via dedicated upload/delete endpoints.
+        via dedicated upload/delete endpoints. Admin only.
       operationId: update-category
       parameters:
       - description: Category ID
@@ -634,12 +639,6 @@ paths:
         name: id
         required: true
         type: integer
-      - default: admin
-        description: User role (must be admin)
-        in: header
-        name: X-User-Role
-        required: true
-        type: string
       - description: Category fields to update
         in: body
         name: request
@@ -658,6 +657,10 @@ paths:
           description: Invalid ID or request body
           schema:
             $ref: '#/definitions/response.Error'
+        "401":
+          description: Authentication required
+          schema:
+            $ref: '#/definitions/response.Error'
         "403":
           description: Access denied
           schema:
@@ -670,6 +673,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Error'
+      security:
+      - BearerAuth: []
       summary: Update a category
       tags:
       - categories
@@ -686,12 +691,6 @@ paths:
         name: id
         required: true
         type: integer
-      - default: admin
-        description: User role (must be admin)
-        in: header
-        name: X-User-Role
-        required: true
-        type: string
       produces:
       - application/json
       responses:
@@ -699,6 +698,10 @@ paths:
           description: No Content
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "401":
+          description: Unauthorized
           schema:
             $ref: '#/definitions/response.Error'
         "403":
@@ -713,6 +716,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Error'
+      security:
+      - BearerAuth: []
       summary: Delete category icon
       tags:
       - categories
@@ -728,12 +733,6 @@ paths:
         name: id
         required: true
         type: integer
-      - default: admin
-        description: User role (must be admin)
-        in: header
-        name: X-User-Role
-        required: true
-        type: string
       - description: Category icon (PNG/JPG, max 2MB)
         in: formData
         name: icon
@@ -751,6 +750,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/response.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Error'
         "403":
           description: Forbidden
           schema:
@@ -763,6 +766,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Error'
+      security:
+      - BearerAuth: []
       summary: Upload category icon
       tags:
       - categories
@@ -801,15 +806,11 @@ paths:
     post:
       consumes:
       - application/json
-      description: Создает новое сообщение об инциденте. До внедрения JWT автор определяется
-        по заголовку X-User-ID.
+      description: Создает новое сообщение об инциденте для авторизованного пользователя.
+        Если статус не указан или передан как review/published, инцидент сохраняется
+        в статусе review.
       operationId: create-incident
       parameters:
-      - description: ID текущего пользователя
-        in: header
-        name: X-User-ID
-        required: true
-        type: integer
       - description: Данные инцидента
         in: body
         name: request
@@ -827,6 +828,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/response.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Error'
         "403":
           description: Forbidden
           schema:
@@ -835,6 +840,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Error'
+      security:
+      - BearerAuth: []
       summary: Создать инцидент
       tags:
       - incidents
@@ -851,16 +858,6 @@ paths:
         name: id
         required: true
         type: integer
-      - description: ID текущего пользователя
-        in: header
-        name: X-User-ID
-        required: true
-        type: integer
-      - default: user
-        description: Роль текущего пользователя
-        in: header
-        name: X-User-Role
-        type: string
       produces:
       - application/json
       responses:
@@ -868,6 +865,10 @@ paths:
           description: No Content
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "401":
+          description: Unauthorized
           schema:
             $ref: '#/definitions/response.Error'
         "403":
@@ -882,14 +883,16 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Error'
+      security:
+      - BearerAuth: []
       summary: Удалить инцидент
       tags:
       - incidents
     get:
       consumes:
       - application/json
-      description: Возвращает детальную карточку инцидента. Доступно только автору
-        инцидента или администратору.
+      description: Возвращает детальную карточку инцидента. Published-инциденты доступны
+        всем. Draft и review доступны только автору или администратору.
       operationId: get-incident
       parameters:
       - description: ID инцидента
@@ -897,15 +900,9 @@ paths:
         name: id
         required: true
         type: integer
-      - description: ID текущего пользователя
+      - description: Bearer access token. Нужен для доступа к draft/review инцидентам.
         in: header
-        name: X-User-ID
-        required: true
-        type: integer
-      - default: user
-        description: Роль текущего пользователя
-        in: header
-        name: X-User-Role
+        name: Authorization
         type: string
       produces:
       - application/json
@@ -916,6 +913,10 @@ paths:
             $ref: '#/definitions/response.Incident'
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "401":
+          description: Unauthorized
           schema:
             $ref: '#/definitions/response.Error'
         "403":
@@ -937,6 +938,7 @@ paths:
       consumes:
       - application/json
       description: Обновляет сообщение об инциденте. Доступно только автору или администратору.
+        Статус published может установить только администратор.
       operationId: update-incident
       parameters:
       - description: ID инцидента
@@ -944,16 +946,6 @@ paths:
         name: id
         required: true
         type: integer
-      - description: ID текущего пользователя
-        in: header
-        name: X-User-ID
-        required: true
-        type: integer
-      - default: user
-        description: Роль текущего пользователя
-        in: header
-        name: X-User-Role
-        type: string
       - description: Поля для обновления инцидента
         in: body
         name: request
@@ -971,6 +963,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/response.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Error'
         "403":
           description: Forbidden
           schema:
@@ -983,6 +979,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Error'
+      security:
+      - BearerAuth: []
       summary: Обновить инцидент
       tags:
       - incidents
@@ -991,7 +989,7 @@ paths:
       consumes:
       - application/json
       description: Возвращает HTML-документ обращения по инциденту с Content-Disposition
-        attachment.
+        attachment. Доступно только автору или администратору.
       operationId: download-incident-document
       parameters:
       - description: ID инцидента
@@ -999,16 +997,6 @@ paths:
         name: id
         required: true
         type: integer
-      - description: ID текущего пользователя
-        in: header
-        name: X-User-ID
-        required: true
-        type: integer
-      - default: user
-        description: Роль текущего пользователя
-        in: header
-        name: X-User-Role
-        type: string
       produces:
       - text/html
       responses:
@@ -1020,6 +1008,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/response.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Error'
         "403":
           description: Forbidden
           schema:
@@ -1032,6 +1024,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Error'
+      security:
+      - BearerAuth: []
       summary: Скачать документ обращения
       tags:
       - incidents
@@ -1040,7 +1034,7 @@ paths:
       consumes:
       - application/json
       description: Отправляет документ обращения на указанный email. Если email не
-        передан, используется email автора инцидента.
+        передан, используется email автора инцидента. Доступно только автору или администратору.
       operationId: email-incident-document
       parameters:
       - description: ID инцидента
@@ -1048,16 +1042,6 @@ paths:
         name: id
         required: true
         type: integer
-      - description: ID текущего пользователя
-        in: header
-        name: X-User-ID
-        required: true
-        type: integer
-      - default: user
-        description: Роль текущего пользователя
-        in: header
-        name: X-User-Role
-        type: string
       - description: Email получателя; можно не передавать
         in: body
         name: request
@@ -1074,6 +1058,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/response.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Error'
         "403":
           description: Forbidden
           schema:
@@ -1086,6 +1074,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Error'
+      security:
+      - BearerAuth: []
       summary: Отправить документ обращения на email
       tags:
       - incidents
@@ -1094,7 +1084,7 @@ paths:
       consumes:
       - application/json
       description: Возвращает HTML-документ обращения с inline Content-Disposition
-        для печати на клиенте.
+        для печати на клиенте. Доступно только автору или администратору.
       operationId: print-incident-document
       parameters:
       - description: ID инцидента
@@ -1102,16 +1092,6 @@ paths:
         name: id
         required: true
         type: integer
-      - description: ID текущего пользователя
-        in: header
-        name: X-User-ID
-        required: true
-        type: integer
-      - default: user
-        description: Роль текущего пользователя
-        in: header
-        name: X-User-Role
-        type: string
       produces:
       - text/html
       responses:
@@ -1123,6 +1103,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/response.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Error'
         "403":
           description: Forbidden
           schema:
@@ -1135,6 +1119,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Error'
+      security:
+      - BearerAuth: []
       summary: Получить печатную версию документа обращения
       tags:
       - incidents
@@ -1143,7 +1129,7 @@ paths:
       consumes:
       - multipart/form-data
       description: Загружает одну или несколько фотографий инцидента. Используй multipart/form-data
-        с повторяемым полем photos.
+        с повторяемым полем photos. Доступно только автору или администратору.
       operationId: upload-incident-photos
       parameters:
       - description: ID инцидента
@@ -1151,16 +1137,6 @@ paths:
         name: id
         required: true
         type: integer
-      - description: ID текущего пользователя
-        in: header
-        name: X-User-ID
-        required: true
-        type: integer
-      - default: user
-        description: Роль текущего пользователя
-        in: header
-        name: X-User-Role
-        type: string
       - description: Фотографии инцидента в формате JPEG/PNG; поле можно передавать
           несколько раз
         in: formData
@@ -1180,6 +1156,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/response.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Error'
         "403":
           description: Forbidden
           schema:
@@ -1192,6 +1172,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Error'
+      security:
+      - BearerAuth: []
       summary: Загрузить фотографии инцидента
       tags:
       - incidents
@@ -1212,16 +1194,6 @@ paths:
         name: photoId
         required: true
         type: integer
-      - description: ID текущего пользователя
-        in: header
-        name: X-User-ID
-        required: true
-        type: integer
-      - default: user
-        description: Роль текущего пользователя
-        in: header
-        name: X-User-Role
-        type: string
       produces:
       - application/json
       responses:
@@ -1229,6 +1201,10 @@ paths:
           description: No Content
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "401":
+          description: Unauthorized
           schema:
             $ref: '#/definitions/response.Error'
         "403":
@@ -1243,6 +1219,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Error'
+      security:
+      - BearerAuth: []
       summary: Удалить фотографию инцидента
       tags:
       - incidents
@@ -1251,13 +1229,6 @@ paths:
       consumes:
       - application/json
       description: Reloads in-memory supported cities from zones table. Admin only.
-      parameters:
-      - default: admin
-        description: User role (must be 'admin')
-        in: header
-        name: X-User-Role
-        required: true
-        type: string
       produces:
       - application/json
       responses:
@@ -1267,6 +1238,10 @@ paths:
             additionalProperties:
               type: string
             type: object
+        "401":
+          description: Authentication required
+          schema:
+            $ref: '#/definitions/response.Error'
         "403":
           description: Access denied
           schema:
@@ -1275,6 +1250,8 @@ paths:
           description: Internal error
           schema:
             $ref: '#/definitions/response.Error'
+      security:
+      - BearerAuth: []
       summary: Reload supported cities cache
       tags:
       - maps
@@ -1388,18 +1365,14 @@ paths:
     get:
       consumes:
       - application/json
-      description: Возвращает список инцидентов текущего пользователя, включая черновики
-        и опубликованные сообщения.
+      description: Возвращает список инцидентов текущего пользователя, включая draft,
+        review и published.
       operationId: list-my-incidents
       parameters:
-      - description: ID текущего пользователя
-        in: header
-        name: X-User-ID
-        required: true
-        type: integer
       - description: Фильтр по статусу
         enum:
         - draft
+        - review
         - published
         - all
         in: query
@@ -1422,10 +1395,16 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/response.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Error'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Error'
+      security:
+      - BearerAuth: []
       summary: Получить мои инциденты
       tags:
       - incidents
@@ -1433,7 +1412,7 @@ paths:
     get:
       consumes:
       - application/json
-      description: Get all users
+      description: Returns all users. Admin only.
       operationId: list-users
       produces:
       - application/json
@@ -1444,17 +1423,28 @@ paths:
             items:
               $ref: '#/definitions/entity.User'
             type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Error'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Error'
+      security:
+      - BearerAuth: []
       summary: List users
       tags:
       - users
     post:
       consumes:
       - application/json
-      description: Create a new user
+      description: Public registration endpoint. Creates a regular user; role and
+        blocked status are not accepted from the request.
       operationId: create-user
       parameters:
       - description: User data
@@ -1474,6 +1464,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/response.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Error'
         "500":
           description: Internal Server Error
           schema:
@@ -1485,7 +1479,7 @@ paths:
     delete:
       consumes:
       - application/json
-      description: Delete user by ID
+      description: Deletes a user by ID. Admin only.
       operationId: delete-user
       parameters:
       - description: User ID
@@ -1502,17 +1496,32 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/response.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Error'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Error'
+      security:
+      - BearerAuth: []
       summary: Delete user
       tags:
       - users
     get:
       consumes:
       - application/json
-      description: Get user by ID
+      description: Returns the requested user. Administrators can read any user; a
+        regular user can read only their own profile.
       operationId: get-user
       parameters:
       - description: User ID
@@ -1531,17 +1540,33 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/response.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Error'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Error'
+      security:
+      - BearerAuth: []
       summary: Get user
       tags:
       - users
     put:
       consumes:
       - application/json
-      description: Update user fields (without password)
+      description: Updates user fields without password. Administrators can update
+        any user; a regular user can update only their own profile and cannot change
+        role or blocked status.
       operationId: update-user
       parameters:
       - description: User ID
@@ -1566,10 +1591,24 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/response.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Error'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Error'
+      security:
+      - BearerAuth: []
       summary: Update user
       tags:
       - users
@@ -1577,7 +1616,8 @@ paths:
     post:
       consumes:
       - multipart/form-data
-      description: Upload avatar image (JPEG/PNG) for a user
+      description: Uploads an avatar image (JPEG/PNG) for a user. Administrators can
+        upload for any user; a regular user can upload only for themselves.
       operationId: upload-avatar
       parameters:
       - description: User ID
@@ -1599,10 +1639,24 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/response.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Error'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Error'
+      security:
+      - BearerAuth: []
       summary: Upload user avatar
       tags:
       - users
@@ -1668,7 +1722,9 @@ paths:
     post:
       consumes:
       - application/json
-      description: Login by login/email/phone + password
+      description: Legacy login endpoint. Authenticates by login/email/phone + password
+        and returns the user profile without issuing a JWT token. Prefer /auth/login
+        for JWT-based auth.
       operationId: users-login
       parameters:
       - description: Credentials
@@ -1732,4 +1788,10 @@ paths:
       summary: Send password reset code
       tags:
       - users
+securityDefinitions:
+  BearerAuth:
+    description: 'JWT access token with Bearer prefix. Example: "Bearer eyJhbGciOi..."'
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"

@@ -4,6 +4,7 @@ import "time"
 
 const (
 	IncidentStatusDraft     = "draft"
+	IncidentStatusReview    = "review"
 	IncidentStatusPublished = "published"
 )
 
@@ -91,8 +92,16 @@ type UpdateIncidentInput struct {
 
 // IncidentDocument is a rendered document derived from an incident.
 type IncidentDocument struct {
+	FileName          string
+	ContentType       string
+	Subject           string
+	BodyHTML          string
+	InlineAttachments []InlineAttachment
+}
+
+type InlineAttachment struct {
+	ContentID   string
 	FileName    string
 	ContentType string
-	Subject     string
-	BodyHTML    string
+	Body        []byte
 }

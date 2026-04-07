@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS incidents (
 
     title VARCHAR(255) NOT NULL,
     description TEXT NOT NULL,
-    status VARCHAR(16) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
+    status VARCHAR(16) NOT NULL DEFAULT 'review' CHECK (status IN ('draft', 'review', 'published')),
     department_name VARCHAR(255) NOT NULL DEFAULT '',
 
     city VARCHAR(100),

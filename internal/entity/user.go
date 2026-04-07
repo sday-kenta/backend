@@ -2,13 +2,20 @@ package entity
 
 import "time"
 
+const (
+	UserRoleUser    = "user"
+	UserRoleAdmin   = "admin"
+	UserRolePremium = "premium"
+)
+
 // User represents an application user.
 // It is used by business logic and maps to the "users" table.
 type User struct {
 	ID           int64  `json:"id"`
 	Login        string `json:"login"`
-	Email        string `json:"email"`
-	PasswordHash string `json:"-"` // never expose password hash
+	Email          string `json:"email"`
+	EmailVerified  bool   `json:"email_verified"`
+	PasswordHash   string `json:"-"` // never expose password hash
 
 	LastName   string `json:"last_name"`
 	FirstName  string `json:"first_name"`

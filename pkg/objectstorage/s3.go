@@ -1,6 +1,7 @@
 package objectstorage
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -87,4 +88,23 @@ func (c *Client) Delete(ctx context.Context, key string) error {
 	}
 
 	return nil
+}
+
+// Download reads an object and returns its content.
+func (c *Client) Download(ctx context.Context, key string) ([]byte, error) {
+	result, err := c.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(c.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("objectstorage - Download - GetObject: %w", err)
+	}
+	defer result.Body.Close()
+
+	var buf bytes.Buffer
+	if _, err = io.Copy(&buf, result.Body); err != nil {
+		return nil, fmt.Errorf("objectstorage - Download - io.Copy: %w", err)
+	}
+
+	return buf.Bytes(), nil
 }

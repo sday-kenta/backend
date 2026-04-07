@@ -14,6 +14,7 @@ import (
 	"github.com/sday-kenta/backend/internal/repo"
 	"github.com/sday-kenta/backend/internal/usererr"
 	"github.com/sday-kenta/backend/pkg/mailsender"
+	"github.com/sday-kenta/backend/pkg/objectstorage"
 )
 
 // UseCase implements usecase.Incident.
@@ -36,7 +37,7 @@ func (uc *UseCase) Create(ctx context.Context, userID int64, input entity.Create
 		return entity.Incident{}, err
 	}
 
-	status, err := normalizeStatus(input.Status)
+	status, err := normalizeCreateStatus(input.Status)
 	if err != nil {
 		return entity.Incident{}, err
 	}
@@ -100,8 +101,10 @@ func (uc *UseCase) List(ctx context.Context, filter entity.IncidentFilter) ([]en
 
 // GetByID returns incident by ID.
 func (uc *UseCase) GetByID(ctx context.Context, requesterID int64, isAdmin bool, id int64) (entity.Incident, error) {
-	if _, err := uc.ensureRequesterExists(ctx, requesterID); err != nil {
-		return entity.Incident{}, err
+	if requesterID != 0 {
+		if _, err := uc.ensureRequesterExists(ctx, requesterID); err != nil {
+			return entity.Incident{}, err
+		}
 	}
 
 	incident, err := uc.repo.GetByID(ctx, id)
@@ -148,6 +151,9 @@ func (uc *UseCase) Update(ctx context.Context, requesterID int64, isAdmin bool, 
 		status, statusErr := normalizeStatus(*input.Status)
 		if statusErr != nil {
 			return entity.Incident{}, statusErr
+		}
+		if status == entity.IncidentStatusPublished && !isAdmin {
+			return entity.Incident{}, incidenterr.ErrForbidden
 		}
 		incident.Status = status
 		if status == entity.IncidentStatusPublished {
@@ -289,7 +295,7 @@ func (uc *UseCase) RenderDocument(ctx context.Context, requesterID int64, isAdmi
 		return entity.IncidentDocument{}, err
 	}
 
-	html, err := renderIncidentHTML(incident)
+	html, err := renderIncidentHTML(buildIncidentDocumentView(incident))
 	if err != nil {
 		return entity.IncidentDocument{}, err
 	}
@@ -304,14 +310,28 @@ func (uc *UseCase) RenderDocument(ctx context.Context, requesterID int64, isAdmi
 
 // SendDocumentByEmail sends the generated document to the given email or to the reporter email by default.
 func (uc *UseCase) SendDocumentByEmail(ctx context.Context, requesterID int64, isAdmin bool, incidentID int64, email string) error {
-	doc, err := uc.RenderDocument(ctx, requesterID, isAdmin, incidentID)
-	if err != nil {
-		return err
-	}
-
 	incident, err := uc.repo.GetByID(ctx, incidentID)
 	if err != nil {
 		return err
+	}
+	if err = ensureCanManage(incident, requesterID, isAdmin); err != nil {
+		return err
+	}
+
+	emailDoc, err := uc.buildEmailDocument(ctx, incident)
+	if err != nil {
+		return fmt.Errorf("IncidentUseCase - SendDocumentByEmail - buildEmailDocument: %w", err)
+	}
+	html, err := renderIncidentHTML(emailDoc.View)
+	if err != nil {
+		return err
+	}
+	doc := entity.IncidentDocument{
+		FileName:          fmt.Sprintf("incident-%d.html", incident.ID),
+		ContentType:       "text/html; charset=utf-8",
+		Subject:           fmt.Sprintf("Обращение по инциденту #%d", incident.ID),
+		BodyHTML:          html,
+		InlineAttachments: emailDoc.InlineAttachments,
 	}
 
 	to := strings.TrimSpace(email)
@@ -329,11 +349,46 @@ func (uc *UseCase) SendDocumentByEmail(ctx context.Context, requesterID int64, i
 		doc.FileName,
 		[]byte(doc.BodyHTML),
 		"text/html; charset=utf-8",
+		doc.InlineAttachments,
 	); err != nil {
 		return fmt.Errorf("IncidentUseCase - SendDocumentByEmail - mailsender.SendMailWithAttachment: %w", err)
 	}
 
 	return nil
+}
+
+func (uc *UseCase) buildEmailDocument(ctx context.Context, incident entity.Incident) (emailDocumentBuildResult, error) {
+	result := emailDocumentBuildResult{View: buildIncidentDocumentView(incident)}
+	if len(incident.Photos) == 0 {
+		return result, nil
+	}
+
+	storage, err := objectstorage.NewFromEnv(ctx)
+	if err != nil {
+		return result, nil
+	}
+
+	for idx, photo := range incident.Photos {
+		if strings.TrimSpace(photo.FileKey) == "" {
+			continue
+		}
+
+		content, downloadErr := storage.Download(ctx, photo.FileKey)
+		if downloadErr != nil {
+			continue
+		}
+
+		contentID := fmt.Sprintf("incident-photo-%d-%d", incident.ID, idx+1)
+		result.View.Photos[idx].Src = template.URL("cid:" + contentID)
+		result.InlineAttachments = append(result.InlineAttachments, entity.InlineAttachment{
+			ContentID:   contentID,
+			FileName:    fmt.Sprintf("incident-%d-photo-%d", incident.ID, idx+1),
+			ContentType: normalizePhotoContentType(photo.ContentType),
+			Body:        content,
+		})
+	}
+
+	return result, nil
 }
 
 func (uc *UseCase) ensureRequesterExists(ctx context.Context, requesterID int64) (entity.User, error) {
@@ -373,6 +428,31 @@ type preparedLocation struct {
 	Longitude   float64
 }
 
+type incidentDocumentView struct {
+	ID               int64
+	DepartmentName   string
+	CategoryTitle    string
+	Title            string
+	AddressText      string
+	Latitude         float64
+	Longitude        float64
+	Description      string
+	ReporterFullName string
+	ReporterEmail    string
+	ReporterPhone    string
+	ReporterAddress  string
+	Photos           []incidentDocumentPhotoView
+}
+
+type incidentDocumentPhotoView struct {
+	Src template.URL
+}
+
+type emailDocumentBuildResult struct {
+	View              incidentDocumentView
+	InlineAttachments []entity.InlineAttachment
+}
+
 func prepareLocation(city, street, house, addressText string, latitude, longitude *float64) (preparedLocation, error) {
 	city = strings.TrimSpace(city)
 	street = strings.TrimSpace(street)
@@ -409,14 +489,25 @@ func prepareLocation(city, street, house, addressText string, latitude, longitud
 func normalizeStatus(status string) (string, error) {
 	status = strings.TrimSpace(strings.ToLower(status))
 	if status == "" {
-		status = entity.IncidentStatusDraft
+		status = entity.IncidentStatusReview
 	}
 	switch status {
-	case entity.IncidentStatusDraft, entity.IncidentStatusPublished:
+	case entity.IncidentStatusDraft, entity.IncidentStatusReview, entity.IncidentStatusPublished:
 		return status, nil
 	default:
 		return "", incidenterr.ErrInvalidStatus
 	}
+}
+
+func normalizeCreateStatus(status string) (string, error) {
+	status, err := normalizeStatus(status)
+	if err != nil {
+		return "", err
+	}
+	if status == entity.IncidentStatusPublished {
+		return entity.IncidentStatusReview, nil
+	}
+	return status, nil
 }
 
 func ensureCanManage(incident entity.Incident, requesterID int64, isAdmin bool) error {
@@ -430,6 +521,9 @@ func ensureCanManage(incident entity.Incident, requesterID int64, isAdmin bool) 
 }
 
 func ensureCanView(incident entity.Incident, requesterID int64, isAdmin bool) error {
+	if incident.Status == entity.IncidentStatusPublished {
+		return nil
+	}
 	return ensureCanManage(incident, requesterID, isAdmin)
 }
 
@@ -484,7 +578,39 @@ func coalesceAddress(addressText string, parts ...string) string {
 	return strings.Join(filtered, ", ")
 }
 
-func renderIncidentHTML(incident entity.Incident) (string, error) {
+func buildIncidentDocumentView(incident entity.Incident) incidentDocumentView {
+	view := incidentDocumentView{
+		ID:               incident.ID,
+		DepartmentName:   incident.DepartmentName,
+		CategoryTitle:    incident.CategoryTitle,
+		Title:            incident.Title,
+		AddressText:      incident.AddressText,
+		Latitude:         incident.Latitude,
+		Longitude:        incident.Longitude,
+		Description:      incident.Description,
+		ReporterFullName: incident.ReporterFullName,
+		ReporterEmail:    incident.ReporterEmail,
+		ReporterPhone:    incident.ReporterPhone,
+		ReporterAddress:  incident.ReporterAddress,
+		Photos:           make([]incidentDocumentPhotoView, 0, len(incident.Photos)),
+	}
+
+	for _, photo := range incident.Photos {
+		view.Photos = append(view.Photos, incidentDocumentPhotoView{Src: template.URL(photo.FileURL)})
+	}
+
+	return view
+}
+
+func normalizePhotoContentType(contentType string) string {
+	contentType = strings.TrimSpace(contentType)
+	if contentType == "" {
+		return "application/octet-stream"
+	}
+	return contentType
+}
+
+func renderIncidentHTML(doc incidentDocumentView) (string, error) {
 	const tpl = `<!doctype html>
 <html lang="ru">
 <head>
@@ -495,8 +621,18 @@ func renderIncidentHTML(incident entity.Incident) (string, error) {
     h1, h2 { margin-bottom: 12px; }
     .meta { margin-bottom: 24px; }
     .label { font-weight: bold; }
-    .photo { margin: 8px 0; }
-    .photo a { word-break: break-all; }
+    .photo { margin: 16px 0; page-break-inside: avoid; }
+    .photo img {
+      display: block;
+      width: 100%;
+      max-width: 720px;
+      height: 320px;
+      object-fit: contain;
+      object-position: center;
+      border: 1px solid #d9d9d9;
+      border-radius: 8px;
+      background: #f7f7f7;
+    }
     @media print { body { margin: 12mm; } }
   </style>
 </head>
@@ -522,7 +658,7 @@ func renderIncidentHTML(incident entity.Incident) (string, error) {
   {{if .Photos}}
   <h2>Фотографии</h2>
   {{range .Photos}}
-    <div class="photo"><a href="{{.FileURL}}">{{.FileURL}}</a></div>
+    <div class="photo"><img src="{{.Src}}" alt="Фотография инцидента"></div>
   {{end}}
   {{end}}
 
@@ -536,7 +672,7 @@ func renderIncidentHTML(incident entity.Incident) (string, error) {
 	}
 
 	var buf bytes.Buffer
-	if err = t.Execute(&buf, incident); err != nil {
+	if err = t.Execute(&buf, doc); err != nil {
 		return "", fmt.Errorf("IncidentUseCase - renderIncidentHTML - template.Execute: %w", err)
 	}
 
