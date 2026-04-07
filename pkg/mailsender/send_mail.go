@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"log"
 	"mime"
 	"mime/multipart"
 	"net/smtp"
@@ -34,6 +35,7 @@ func SendMail(subject string, body string, to []string) error {
 		[]byte(msg),
 	)
 	if err != nil {
+		log.Printf("Failed to send email: %v", err)
 		return err
 	}
 
