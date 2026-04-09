@@ -8,7 +8,7 @@ type User struct {
 	ID           int64  `json:"id"`
 	Login        string `json:"login"`
 	Email        string `json:"email"`
-	PasswordHash string `json:"-"` // never expose password hash
+	PasswordHash string `json:"-"`
 
 	LastName   string `json:"last_name"`
 	FirstName  string `json:"first_name"`
@@ -20,11 +20,10 @@ type User struct {
 	House     string `json:"house"`
 	Apartment string `json:"apartment,omitempty"`
 
-	// AvatarURL stores identifier or URL of avatar image (e.g. S3 key).
 	AvatarURL string `json:"avatar_url,omitempty"`
 
 	IsBlocked bool   `json:"is_blocked"`
-	Role      string `json:"role"` // user, admin, premium
+	Role      string `json:"role"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

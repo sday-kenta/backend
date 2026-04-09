@@ -389,6 +389,10 @@ func (r *UsersV1) sendEmailVerificationCode(ctx *fiber.Ctx) error {
 
 	if err := r.u.SendEmailVerificationCode(ctx.UserContext(), body.Email, body.Purpose); err != nil {
 		r.l.Error(err, "restapi - v1 - sendEmailVerificationCode")
+		// Mail transport/auth errors are not DB problems; return explicit message for client/UI.
+		if strings.Contains(strings.ToLower(err.Error()), "sendmail") {
+			return errorResponse(ctx, http.StatusInternalServerError, "failed to send email")
+		}
 		return userErrorResponse(ctx, err)
 	}
 
