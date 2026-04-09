@@ -8,9 +8,10 @@ import (
 	"github.com/sday-kenta/backend/pkg/logger"
 )
 
-func NewIncidentRoutes(apiV1Group fiber.Router, i usecase.Incident, l logger.Interface, mediaBaseURL string) {
+func NewIncidentRoutes(apiV1Group fiber.Router, i usecase.Incident, p usecase.Push, l logger.Interface, mediaBaseURL string) {
 	r := &IncidentsV1{
 		i:            i,
+		p:            p,
 		l:            l,
 		v:            validator.New(validator.WithRequiredStructEnabled()),
 		mediaBaseURL: mediaBaseURL,

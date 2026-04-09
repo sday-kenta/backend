@@ -17,6 +17,7 @@ import (
 	"github.com/sday-kenta/backend/internal/entity"
 	"github.com/sday-kenta/backend/internal/incidenterr"
 	"github.com/sday-kenta/backend/internal/usecase"
+	pushuc "github.com/sday-kenta/backend/internal/usecase/push"
 	"github.com/sday-kenta/backend/pkg/logger"
 	"github.com/sday-kenta/backend/pkg/objectstorage"
 )
@@ -24,6 +25,7 @@ import (
 // IncidentsV1 handles incidents/messages API.
 type IncidentsV1 struct {
 	i            usecase.Incident
+	p            usecase.Push
 	l            logger.Interface
 	v            *validator.Validate
 	mediaBaseURL string
@@ -279,6 +281,11 @@ func (r *IncidentsV1) updateIncident(ctx *fiber.Ctx) error {
 	if err != nil {
 		return errorResponse(ctx, http.StatusUnauthorized, err.Error())
 	}
+	before, err := r.i.GetByID(ctx.UserContext(), requester.UserID, requester.IsAdmin, id)
+	if err != nil {
+		r.l.Error(err, "restapi - v1 - updateIncident - GetByID")
+		return incidentErrorResponse(ctx, err)
+	}
 
 	var body request.UpdateIncident
 	if err = ctx.BodyParser(&body); err != nil {
@@ -306,6 +313,11 @@ func (r *IncidentsV1) updateIncident(ctx *fiber.Ctx) error {
 	if err != nil {
 		r.l.Error(err, "restapi - v1 - updateIncident")
 		return incidentErrorResponse(ctx, err)
+	}
+	if notification, ok := pushuc.BuildIncidentStatusNotification(before, incident, requester.UserID); ok {
+		if notifyErr := r.p.NotifyIncidentStatusChanged(ctx.UserContext(), notification); notifyErr != nil {
+			r.l.Error(fmt.Errorf("restapi - v1 - updateIncident - NotifyIncidentStatusChanged: %w", notifyErr))
+		}
 	}
 
 	return ctx.Status(http.StatusOK).JSON(toIncidentResponse(incident))

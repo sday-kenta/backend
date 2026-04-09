@@ -502,6 +502,56 @@ const docTemplate = `{
                 }
             }
         },
+        "/feedback": {
+            "post": {
+                "description": "Письмо уходит на служебный адрес SMTP (тот же, что для кодов на почту)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "feedback"
+                ],
+                "summary": "Отправить обращение",
+                "operationId": "send-feedback",
+                "parameters": [
+                    {
+                        "description": "Текст и опционально контакты",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.SendFeedback"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/incidents": {
             "get": {
                 "description": "Возвращает общий список опубликованных сообщений. Черновики в эту выборку не попадают.",
@@ -1430,6 +1480,120 @@ const docTemplate = `{
                 }
             }
         },
+        "/push/devices": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Registers or refreshes an FCM device for the authenticated user.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "push"
+                ],
+                "summary": "Register push device",
+                "operationId": "register-push-device",
+                "parameters": [
+                    {
+                        "description": "Push device payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.RegisterPushDevice"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/push/devices/{deviceId}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Deletes an FCM device by client-generated device ID for the authenticated user.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "push"
+                ],
+                "summary": "Delete push device",
+                "operationId": "delete-push-device",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client device ID",
+                        "name": "deviceId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/users": {
             "get": {
                 "security": [
@@ -1665,6 +1829,56 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/password-reset/reset": {
+            "post": {
+                "description": "Verifies the code from email and sets a new password",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Reset password with code",
+                "operationId": "reset-password-with-code",
+                "parameters": [
+                    {
+                        "description": "Email, code and new password",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.ResetPasswordWithCode"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }
@@ -2021,6 +2235,9 @@ const docTemplate = `{
                 "email": {
                     "type": "string"
                 },
+                "email_verified": {
+                    "type": "boolean"
+                },
                 "first_name": {
                     "type": "string"
                 },
@@ -2207,6 +2424,62 @@ const docTemplate = `{
                 }
             }
         },
+        "request.RegisterPushDevice": {
+            "type": "object",
+            "required": [
+                "device_id",
+                "fcm_token",
+                "platform"
+            ],
+            "properties": {
+                "app_version": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "example": "1.0.0"
+                },
+                "device_id": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "example": "0a2a97ae-9d0a-4ef1-9729-e7d8e31ab001"
+                },
+                "fcm_token": {
+                    "type": "string",
+                    "maxLength": 4096,
+                    "example": "fcm-registration-token"
+                },
+                "platform": {
+                    "type": "string",
+                    "enum": [
+                        "android",
+                        "ios"
+                    ],
+                    "example": "android"
+                }
+            }
+        },
+        "request.ResetPasswordWithCode": {
+            "type": "object",
+            "required": [
+                "code",
+                "email",
+                "new_password"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "123456"
+                },
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                },
+                "new_password": {
+                    "type": "string",
+                    "minLength": 6,
+                    "example": "newsecret1"
+                }
+            }
+        },
         "request.SendEmailVerificationCode": {
             "type": "object",
             "required": [
@@ -2225,6 +2498,29 @@ const docTemplate = `{
                         "change_email"
                     ],
                     "example": "register"
+                }
+            }
+        },
+        "request.SendFeedback": {
+            "type": "object",
+            "required": [
+                "message"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                },
+                "message": {
+                    "type": "string",
+                    "maxLength": 8000,
+                    "minLength": 10,
+                    "example": "Текст обращения"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "example": "Иван"
                 }
             }
         },

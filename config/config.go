@@ -14,6 +14,7 @@ type (
 		App       App
 		Admin     AdminBootstrap
 		Auth      Auth
+		FCM       FCM
 		HTTP      HTTP
 		Log       Log
 		PG        PG
@@ -48,6 +49,12 @@ type (
 		JWTSecret string        `env:"JWT_SECRET" envDefault:"dev-secret-change-me"`
 		JWTTTL    time.Duration `env:"JWT_TTL" envDefault:"24h"`
 		JWTIssuer string        `env:"JWT_ISSUER" envDefault:"backend"`
+	}
+
+	FCM struct {
+		Enabled         bool          `env:"FCM_ENABLED" envDefault:"false"`
+		CredentialsFile string        `env:"FCM_CREDENTIALS_FILE" envDefault:"./firebase-service-account.json"`
+		Timeout         time.Duration `env:"FCM_TIMEOUT" envDefault:"5s"`
 	}
 
 	HTTP struct {

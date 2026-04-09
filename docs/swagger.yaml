@@ -13,6 +13,8 @@ definitions:
         type: string
       email:
         type: string
+      email_verified:
+        type: boolean
       first_name:
         type: string
       house:
@@ -149,6 +151,48 @@ definitions:
     - identifier
     - password
     type: object
+  request.RegisterPushDevice:
+    properties:
+      app_version:
+        example: 1.0.0
+        maxLength: 64
+        type: string
+      device_id:
+        example: 0a2a97ae-9d0a-4ef1-9729-e7d8e31ab001
+        maxLength: 255
+        type: string
+      fcm_token:
+        example: fcm-registration-token
+        maxLength: 4096
+        type: string
+      platform:
+        enum:
+        - android
+        - ios
+        example: android
+        type: string
+    required:
+    - device_id
+    - fcm_token
+    - platform
+    type: object
+  request.ResetPasswordWithCode:
+    properties:
+      code:
+        example: "123456"
+        type: string
+      email:
+        example: user@example.com
+        type: string
+      new_password:
+        example: newsecret1
+        minLength: 6
+        type: string
+    required:
+    - code
+    - email
+    - new_password
+    type: object
   request.SendEmailVerificationCode:
     properties:
       email:
@@ -163,6 +207,23 @@ definitions:
     required:
     - email
     - purpose
+    type: object
+  request.SendFeedback:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      message:
+        example: Текст обращения
+        maxLength: 8000
+        minLength: 10
+        type: string
+      name:
+        example: Иван
+        maxLength: 200
+        type: string
+    required:
+    - message
     type: object
   request.SendIncidentDocumentEmail:
     properties:
@@ -771,6 +832,40 @@ paths:
       summary: Upload category icon
       tags:
       - categories
+  /feedback:
+    post:
+      consumes:
+      - application/json
+      description: Письмо уходит на служебный адрес SMTP (тот же, что для кодов на
+        почту)
+      operationId: send-feedback
+      parameters:
+      - description: Текст и опционально контакты
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.SendFeedback'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Отправить обращение
+      tags:
+      - feedback
   /incidents:
     get:
       consumes:
@@ -1408,6 +1503,80 @@ paths:
       summary: Получить мои инциденты
       tags:
       - incidents
+  /push/devices:
+    post:
+      consumes:
+      - application/json
+      description: Registers or refreshes an FCM device for the authenticated user.
+      operationId: register-push-device
+      parameters:
+      - description: Push device payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.RegisterPushDevice'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      security:
+      - BearerAuth: []
+      summary: Register push device
+      tags:
+      - push
+  /push/devices/{deviceId}:
+    delete:
+      consumes:
+      - application/json
+      description: Deletes an FCM device by client-generated device ID for the authenticated
+        user.
+      operationId: delete-push-device
+      parameters:
+      - description: Client device ID
+        in: path
+        name: deviceId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      security:
+      - BearerAuth: []
+      summary: Delete push device
+      tags:
+      - push
   /users:
     get:
       consumes:
@@ -1757,6 +1926,39 @@ paths:
           schema:
             $ref: '#/definitions/response.Error'
       summary: Login
+      tags:
+      - users
+  /users/password-reset/reset:
+    post:
+      consumes:
+      - application/json
+      description: Verifies the code from email and sets a new password
+      operationId: reset-password-with-code
+      parameters:
+      - description: Email, code and new password
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.ResetPasswordWithCode'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Reset password with code
       tags:
       - users
   /users/password-reset/send-code:

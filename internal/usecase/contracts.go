@@ -50,4 +50,10 @@ type (
 		RenderDocument(context.Context, int64, bool, int64) (entity.IncidentDocument, error)
 		SendDocumentByEmail(context.Context, int64, bool, int64, string) error
 	}
+
+	Push interface {
+		RegisterDevice(context.Context, int64, entity.UpsertPushDeviceInput) error
+		DeleteDevice(context.Context, int64, string) error
+		NotifyIncidentStatusChanged(context.Context, entity.PushNotification) error
+	}
 )
