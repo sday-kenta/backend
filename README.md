@@ -2,29 +2,31 @@
 
 Combined Go/Fiber backend for the **"Сознательный гражданин"** project.
 
-The service already includes users, categories, maps/geocoding, and the incidents/messages domain. It also exposes Swagger, Prometheus metrics, MinIO/S3-based file storage, and PostgreSQL/PostGIS integration.
+The service already includes users, categories, maps/geocoding, incidents, feedback email, Swagger, Prometheus metrics, MinIO/S3-based file storage, PostgreSQL/PostGIS integration, and Firebase Cloud Messaging push delivery.
 
 ## Current status
 
 Implemented now:
-- users and profile editing;
-- login by `login` / `email` / `phone`;
+- Bearer JWT auth with public `POST /v1/auth/register` and `POST /v1/auth/login`;
+- optional admin bootstrap via environment variables;
+- user management, profile editing, and avatar upload;
 - email verification code sending and verification;
-- password reset code sending;
-- categories CRUD;
+- password reset by email code;
+- admin-only user creation without email confirmation, with `role` and `is_blocked`;
+- categories CRUD plus icon upload/delete;
 - maps search and reverse geocoding via OSM/Nominatim + PostGIS zones;
-- avatar upload to MinIO/S3;
-- incidents CRUD;
-- incident photo upload;
-- draft / published incident flow;
-- incident document rendering for download / print / email.
+- incidents CRUD with moderation flow `draft / review / published`;
+- incident photo upload with ownership checks;
+- incident document rendering for download / print / email;
+- public feedback email endpoint;
+- FCM push device registration and incident status notifications;
+- Swagger and Prometheus integration.
 
 Important limitations of the current MVP:
-- there is **no JWT-based auth yet**;
-- temporary access control is based on headers;
-- `X-User-Role: admin` is still used for admin-only routes;
-- incident ownership is currently identified by `X-User-ID`;
-- password reset flow is still partial: only sending the code is implemented.
+- push delivery is synchronous best-effort; there is no queue, RMQ, or Redis layer;
+- authentication currently uses a single access JWT, without refresh tokens;
+- PWA push still requires Firebase Web SDK, VAPID key, and a service worker on the frontend;
+- Firebase service account credentials must be provided locally or via deployment secrets and must never be committed to git.
 
 ## Stack
 
@@ -34,6 +36,7 @@ Important limitations of the current MVP:
 - Swagger / Swaggo
 - MinIO via S3 API
 - OpenStreetMap / Nominatim
+- Firebase Cloud Messaging
 - Docker Compose
 
 ## Project structure
@@ -47,8 +50,10 @@ Important limitations of the current MVP:
 - `internal/usecase` - business logic
 - `migrations` - SQL migrations
 - `docs` - generated Swagger files
-- `pkg/objectstorage` - shared MinIO/S3 helper
+- `pkg/authjwt` - JWT generation and parsing
 - `pkg/mailsender` - email sending helpers
+- `pkg/objectstorage` - shared MinIO/S3 helper
+- `pkg/pushclient` - FCM HTTP v1 sender
 
 ## Quick start
 
@@ -66,19 +71,30 @@ At minimum, review these values:
 - `AWS_S3_ENDPOINT`
 - `AVATAR_BASE_URL`
 - `INCIDENT_MEDIA_BASE_URL`
+- `CATEGORY_MEDIA_BASE_URL`
+- `JWT_SECRET`
 - `SMTP_MAIL`
 - `SMTP_CODE`
 - `SMTP_HOST`
 - `SMTP_PORT`
+- `FCM_ENABLED`
+- `FCM_CREDENTIALS_FILE`
+
+If you want the app to create the first admin automatically on startup, also configure:
+- `ADMIN_BOOTSTRAP_ENABLED=true`
+- `ADMIN_BOOTSTRAP_LOGIN`
+- `ADMIN_BOOTSTRAP_EMAIL`
+- `ADMIN_BOOTSTRAP_PASSWORD`
+- `ADMIN_BOOTSTRAP_PHONE`
+
+For local push testing, place the Firebase service account JSON at the path from `FCM_CREDENTIALS_FILE` (by default `./firebase-service-account.json`) and keep it untracked. In production, mount it as a secret file and point `FCM_CREDENTIALS_FILE` to that path.
 
 `SMTP_MAIL` and `SMTP_CODE` are required for:
 - `POST /v1/users/email-code/send`
 - `POST /v1/users/password-reset/send-code`
+- `POST /v1/users/password-reset/reset`
 - `POST /v1/incidents/{id}/document/email`
-
-SMTP server can be customized with:
-- `SMTP_HOST` (default: `smtp.mail.ru`)
-- `SMTP_PORT` (default: `587`)
+- `POST /v1/feedback`
 
 ### 2. Run the full stack
 
@@ -118,7 +134,12 @@ APP_NAME=backend
 APP_VERSION=1.0.0
 HTTP_PORT=8080
 HTTP_USE_PREFORK_MODE=false
+
 LOG_LEVEL=debug
+LOG_PRETTY=true
+HTTP_LOG_HEADERS=true
+HTTP_LOG_BODY=true
+HTTP_LOG_BODY_MAX_BYTES=4096
 
 POSTGRES_USER=user
 POSTGRES_PASSWORD=postgres
@@ -128,18 +149,9 @@ PG_URL=postgres://user:postgres@db:5432/backend
 
 METRICS_ENABLED=true
 SWAGGER_ENABLED=true
-
-GEO_CACHE_RADIUS_METERS=20
-GEO_MAX_CITY_ATTEMPTS=4
-
-NOMINATIM_BASE_URL=https://nominatim.openstreetmap.org
-NOMINATIM_USER_AGENT=sday-kenta/1.0
-NOMINATIM_EMAIL=
-NOMINATIM_ACCEPT_LANGUAGE=ru
-NOMINATIM_COUNTRY_CODES=ru
-NOMINATIM_SEARCH_LIMIT=5
-NOMINATIM_REVERSE_ZOOM=18
-NOMINATIM_TIMEOUT=5s
+SWAGGER_HOST=localhost:8080
+SWAGGER_BASE_PATH=/v1
+SWAGGER_SCHEMES=http
 
 AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=minioadmin
@@ -148,17 +160,33 @@ AWS_S3_BUCKET=avatars
 AWS_S3_ENDPOINT=http://minio:9000
 AVATAR_BASE_URL=http://localhost:9000/avatars
 INCIDENT_MEDIA_BASE_URL=http://localhost:9000/avatars
+CATEGORY_MEDIA_BASE_URL=http://localhost:9000/avatars
 
-SMTP_MAIL=
-SMTP_CODE=
+ADMIN_BOOTSTRAP_ENABLED=false
+ADMIN_BOOTSTRAP_LOGIN=admin
+ADMIN_BOOTSTRAP_EMAIL=admin@mail.ru
+ADMIN_BOOTSTRAP_PASSWORD=admin
+ADMIN_BOOTSTRAP_PHONE=+79990000000
+
+JWT_SECRET=dev-secret-change-me
+JWT_TTL=24h
+JWT_ISSUER=backend
+
+FCM_ENABLED=false
+FCM_CREDENTIALS_FILE=./firebase-service-account.json
+FCM_TIMEOUT=5s
+
+SMTP_MAIL=address@example.com
+SMTP_CODE=XXXX XXXX XXXX XXXX
 SMTP_HOST=smtp.mail.ru
 SMTP_PORT=587
 ```
 
 Notes:
-- by default both avatars and incident photos are stored in the same S3 bucket;
+- by default avatars, incident photos, and category icons can share the same S3 bucket;
 - incident photos use keys like `incidents/<incident_id>/<timestamp>.<ext>`;
-- file URLs are built from `AVATAR_BASE_URL` and `INCIDENT_MEDIA_BASE_URL`.
+- file URLs are built from `AVATAR_BASE_URL`, `INCIDENT_MEDIA_BASE_URL`, and `CATEGORY_MEDIA_BASE_URL`;
+- when `FCM_ENABLED=false`, push registration endpoints still work at the persistence layer, but actual delivery is disabled.
 
 ## HTTP API
 
@@ -177,15 +205,16 @@ Base path: `/v1`
 
 ### Users
 
-- `POST /v1/users` - admin only
-- `GET /v1/users`
-- `GET /v1/users/{id}`
-- `PUT /v1/users/{id}`
-- `DELETE /v1/users/{id}`
-- `POST /v1/users/{id}/avatar`
+- `POST /v1/users` - admin only, creates user immediately without email confirmation
+- `GET /v1/users` - admin only
+- `GET /v1/users/{id}` - self or admin
+- `PUT /v1/users/{id}` - self or admin
+- `DELETE /v1/users/{id}` - admin only
+- `POST /v1/users/{id}/avatar` - self or admin
 - `POST /v1/users/email-code/send`
 - `POST /v1/users/email-code/verify`
 - `POST /v1/users/password-reset/send-code`
+- `POST /v1/users/password-reset/reset`
 
 ### Categories
 
@@ -193,6 +222,8 @@ Base path: `/v1`
 - `GET /v1/categories/{id}`
 - `POST /v1/categories` - admin only
 - `PATCH /v1/categories/{id}` - admin only
+- `POST /v1/categories/{id}/icon` - admin only
+- `DELETE /v1/categories/{id}/icon` - admin only
 - `DELETE /v1/categories/{id}` - admin only
 
 ### Maps
@@ -203,43 +234,42 @@ Base path: `/v1`
 
 ### Incidents
 
-- `POST /v1/incidents`
+- `POST /v1/incidents` - auth required
 - `GET /v1/incidents`
 - `GET /v1/incidents/{id}`
-- `PATCH /v1/incidents/{id}`
-- `DELETE /v1/incidents/{id}`
-- `GET /v1/my/incidents`
-- `POST /v1/incidents/{id}/photos`
-- `DELETE /v1/incidents/{id}/photos/{photoId}`
-- `GET /v1/incidents/{id}/document/download`
-- `GET /v1/incidents/{id}/document/print`
-- `POST /v1/incidents/{id}/document/email`
+- `PATCH /v1/incidents/{id}` - auth required
+- `DELETE /v1/incidents/{id}` - auth required
+- `GET /v1/my/incidents` - auth required
+- `POST /v1/incidents/{id}/photos` - auth required
+- `DELETE /v1/incidents/{id}/photos/{photoId}` - auth required
+- `GET /v1/incidents/{id}/document/download` - auth required
+- `GET /v1/incidents/{id}/document/print` - auth required
+- `POST /v1/incidents/{id}/document/email` - auth required
+
+### Push
+
+- `POST /v1/push/devices` - auth required
+- `DELETE /v1/push/devices/{deviceId}` - auth required
+
+### Feedback
+
+- `POST /v1/feedback`
 
 ## Access model
 
-Current temporary headers:
+The `/v1` API group uses optional Bearer JWT parsing. Public routes can be called without `Authorization`, while protected routes require:
 
-- `X-User-Role: admin` - for admin-only routes
-- `X-User-ID: <id>` - for incident ownership and "my incidents" routes
+```http
+Authorization: Bearer <access-token>
+```
 
-### Routes that require `X-User-ID`
-
-- `POST /v1/incidents`
-- `GET /v1/my/incidents`
-- `PATCH /v1/incidents/{id}`
-- `DELETE /v1/incidents/{id}`
-- `POST /v1/incidents/{id}/photos`
-- `DELETE /v1/incidents/{id}/photos/{photoId}`
-- `GET /v1/incidents/{id}/document/download`
-- `GET /v1/incidents/{id}/document/print`
-- `POST /v1/incidents/{id}/document/email`
-
-### Routes that require `X-User-Role: admin`
-
-- `POST /v1/categories`
-- `PATCH /v1/categories/{id}`
-- `DELETE /v1/categories/{id}`
-- `POST /v1/maps/reload-cities`
+Main rules:
+- `POST /v1/auth/register` is the public self-registration flow with email confirmation;
+- `POST /v1/users` is a separate admin-only flow for immediate user creation;
+- `GET /v1/incidents` is public, but the response depends on role if a valid JWT is provided;
+- `GET /v1/incidents/{id}` is public only for `published` incidents; `draft` and `review` require author or admin access;
+- `GET /v1/users/{id}`, `PUT /v1/users/{id}`, and `POST /v1/users/{id}/avatar` are limited to self or admin;
+- admin-only routes use role from JWT, not custom headers.
 
 ## Incident flow
 
@@ -258,14 +288,16 @@ This keeps map behavior, filtering, and document generation simple without intro
 - `published`
 
 Behavior:
-- `GET /v1/incidents` returns **published only** for regular users and anonymous requests;
+- if status is omitted in `POST /v1/incidents`, the backend stores `review`;
+- `GET /v1/incidents` returns only `published` for regular users and anonymous requests;
 - for admins, `GET /v1/incidents` returns `published + review` by default;
-- admins may repeat the `status` query parameter, for example `?status=review&status=published`, to control which statuses are returned;
-- `GET /v1/my/incidents` returns current user's incidents, including drafts and review items;
-- draft and review details are visible only to the author or admin;
+- admins may repeat the `status` query parameter, for example `?status=review&status=published`, to choose which statuses are returned;
+- `GET /v1/incidents` and `GET /v1/my/incidents` also support `category_id`;
+- `GET /v1/my/incidents` returns the current user's incidents and supports `status=draft|review|published|all`;
+- `draft` and `review` details are visible only to the author or admin;
 - when a regular user sends `status=published` in `POST /v1/incidents` or `PATCH /v1/incidents/{id}`, the backend stores `review` instead;
-- an admin may store `published` directly.
-- an admin cannot edit another user's `draft` incident through `PATCH /v1/incidents/{id}`.
+- an admin may store `published` directly;
+- an admin cannot edit another user's `draft` incident through `PATCH /v1/incidents/{id}`;
 - only the incident author may upload photos; an admin may still delete another user's incident or photos.
 
 ### Incident photos
@@ -284,6 +316,28 @@ Available actions:
 - `GET /v1/incidents/{id}/document/download` - returns HTML with `Content-Disposition: attachment`
 - `GET /v1/incidents/{id}/document/print` - returns HTML with `Content-Disposition: inline`
 - `POST /v1/incidents/{id}/document/email` - sends the rendered HTML document by email
+
+## Push notifications
+
+Push delivery is implemented through FCM HTTP v1.
+
+Backend behavior:
+- `POST /v1/push/devices` registers or refreshes a device token for the authenticated user;
+- `DELETE /v1/push/devices/{deviceId}` detaches the client-generated device ID;
+- supported platforms are `android`, `ios`, and `web`; `pwa` is accepted and normalized to `web`;
+- notification delivery is triggered on incident status changes:
+  - non-published -> `published`
+  - `review` -> `draft` when the actor is not the incident author
+
+For local development:
+- place the Firebase service account JSON at `FCM_CREDENTIALS_FILE`;
+- keep it out of git;
+- enable delivery with `FCM_ENABLED=true`.
+
+For a PWA frontend:
+- use Firebase Web SDK;
+- generate a web push token with a VAPID key and service worker;
+- send that token to `POST /v1/push/devices` with `platform=web`.
 
 ## Development commands
 
