@@ -21,18 +21,19 @@ func SendMail(subject string, body string, to []string) error {
 	if err != nil {
 		return err
 	}
+	smtpHost, smtpAddr := smtpServerConfig()
 
 	auth := smtp.PlainAuth(
 		"",
 		smtpMailName,
 		smtpMailCode,
-		"smtp.gmail.com",
+		smtpHost,
 	)
 
 	msg := buildPlainTextMessage(subject, body, smtpMailName, to)
 
 	if err = smtp.SendMail(
-		"smtp.gmail.com:587",
+		smtpAddr,
 		auth,
 		smtpMailName,
 		to,
@@ -50,8 +51,9 @@ func SendMailWithAttachment(subject, htmlBody string, to []string, attachmentNam
 	if err != nil {
 		return err
 	}
+	smtpHost, smtpAddr := smtpServerConfig()
 
-	auth := smtp.PlainAuth("", smtpMailName, smtpMailCode, "smtp.gmail.com")
+	auth := smtp.PlainAuth("", smtpMailName, smtpMailCode, smtpHost)
 
 	var message bytes.Buffer
 	writer := multipart.NewWriter(&message)
@@ -152,7 +154,7 @@ func SendMailWithAttachment(subject, htmlBody string, to []string, attachmentNam
 		return closeErr
 	}
 
-	return smtp.SendMail("smtp.gmail.com:587", auth, smtpMailName, to, message.Bytes())
+	return smtp.SendMail(smtpAddr, auth, smtpMailName, to, message.Bytes())
 }
 
 func writeBase64Body(dst io.Writer, content []byte) error {
@@ -186,6 +188,20 @@ func smtpCredentials() (string, string, error) {
 	}
 
 	return smtpMailName, smtpMailCode, nil
+}
+
+func smtpServerConfig() (string, string) {
+	host := strings.TrimSpace(os.Getenv("SMTP_HOST"))
+	if host == "" {
+		host = "smtp.mail.ru"
+	}
+
+	port := strings.TrimSpace(os.Getenv("SMTP_PORT"))
+	if port == "" {
+		port = "587"
+	}
+
+	return host, host + ":" + port
 }
 
 func normalizeSMTPPassword(raw string) string {

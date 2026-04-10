@@ -68,11 +68,17 @@ At minimum, review these values:
 - `INCIDENT_MEDIA_BASE_URL`
 - `SMTP_MAIL`
 - `SMTP_CODE`
+- `SMTP_HOST`
+- `SMTP_PORT`
 
 `SMTP_MAIL` and `SMTP_CODE` are required for:
 - `POST /v1/users/email-code/send`
 - `POST /v1/users/password-reset/send-code`
 - `POST /v1/incidents/{id}/document/email`
+
+SMTP server can be customized with:
+- `SMTP_HOST` (default: `smtp.mail.ru`)
+- `SMTP_PORT` (default: `587`)
 
 ### 2. Run the full stack
 
@@ -145,6 +151,8 @@ INCIDENT_MEDIA_BASE_URL=http://localhost:9000/avatars
 
 SMTP_MAIL=
 SMTP_CODE=
+SMTP_HOST=smtp.mail.ru
+SMTP_PORT=587
 ```
 
 Notes:

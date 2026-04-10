@@ -66,11 +66,17 @@ cp .env.example .env
 - `INCIDENT_MEDIA_BASE_URL`
 - `SMTP_MAIL`
 - `SMTP_CODE`
+- `SMTP_HOST`
+- `SMTP_PORT`
 
 `SMTP_MAIL` и `SMTP_CODE` нужны для:
 - `POST /v1/users/email-code/send`
 - `POST /v1/users/password-reset/send-code`
 - `POST /v1/incidents/{id}/document/email`
+
+SMTP-сервер можно переопределить переменными:
+- `SMTP_HOST` (по умолчанию: `smtp.mail.ru`)
+- `SMTP_PORT` (по умолчанию: `587`)
 
 ### 2. Поднять стек
 
@@ -143,6 +149,8 @@ INCIDENT_MEDIA_BASE_URL=http://localhost:9000/avatars
 
 SMTP_MAIL=
 SMTP_CODE=
+SMTP_HOST=smtp.mail.ru
+SMTP_PORT=587
 ```
 
 Примечания:
