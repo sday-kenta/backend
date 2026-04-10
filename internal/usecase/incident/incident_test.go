@@ -44,7 +44,7 @@ func TestNormalizeCreateStatus(t *testing.T) {
 	}
 }
 
-func TestUpdateNonAdminCannotPublishIncident(t *testing.T) {
+func TestUpdateNonAdminPublishMovesIncidentToReview(t *testing.T) {
 	t.Parallel()
 
 	repo := &incidentRepoStub{
@@ -66,10 +66,12 @@ func TestUpdateNonAdminCannotPublishIncident(t *testing.T) {
 	)
 
 	status := entity.IncidentStatusPublished
-	_, err := uc.Update(context.Background(), 7, false, 42, entity.UpdateIncidentInput{Status: &status})
+	updated, err := uc.Update(context.Background(), 7, false, 42, entity.UpdateIncidentInput{Status: &status})
 
-	require.ErrorIs(t, err, incidenterr.ErrForbidden)
-	require.False(t, repo.updateCalled)
+	require.NoError(t, err)
+	require.True(t, repo.updateCalled)
+	require.Equal(t, entity.IncidentStatusReview, updated.Status)
+	require.Nil(t, updated.PublishedAt)
 }
 
 func TestRenderIncidentHTMLUsesImageTagWithoutDistortion(t *testing.T) {

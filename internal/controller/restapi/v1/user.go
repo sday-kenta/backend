@@ -95,34 +95,37 @@ func ensureSelfOrAdmin(ctx *fiber.Ctx, targetUserID int64) (authmw.AuthUser, err
 	return requester, nil
 }
 
-// @Summary     Create user
-// @Description Public registration endpoint. Creates a regular user; role and blocked status are not accepted from the request.
-// @ID          create-user
+// @Summary     Create user by admin
+// @Description Creates a user immediately without email confirmation flow. Admin only. Role and blocked status can be set during creation.
+// @ID          create-user-by-admin
 // @Tags  	    users
 // @Accept      json
 // @Produce     json
-// @Param       request body request.CreateUser true "User data"
+// @Param       request body request.CreateUserByAdmin true "User data"
+// @Security    BearerAuth
 // @Success     201 {object} entity.User
 // @Failure     400 {object} response.Error
+// @Failure     401 {object} response.Error
+// @Failure     403 {object} response.Error
 // @Failure     409 {object} response.Error
 // @Failure     500 {object} response.Error
 // @Router      /users [post]
-func (r *UsersV1) createUser(ctx *fiber.Ctx) error {
-	var body request.CreateUser
+func (r *UsersV1) createUserByAdmin(ctx *fiber.Ctx) error {
+	var body request.CreateUserByAdmin
 
 	if err := ctx.BodyParser(&body); err != nil {
-		r.l.Error(err, "restapi - v1 - createUser")
+		r.l.Error(err, "restapi - v1 - createUserByAdmin")
 
 		return errorResponse(ctx, http.StatusBadRequest, "invalid request body")
 	}
 
 	if err := r.v.Struct(body); err != nil {
-		r.l.Error(err, "restapi - v1 - createUser")
+		r.l.Error(err, "restapi - v1 - createUserByAdmin")
 
 		return errorResponse(ctx, http.StatusBadRequest, formatValidationError(err))
 	}
 
-	user, err := r.u.Create(
+	user, err := r.u.CreateByAdmin(
 		ctx.UserContext(),
 		entity.User{
 			Login:      body.Login,
@@ -135,11 +138,13 @@ func (r *UsersV1) createUser(ctx *fiber.Ctx) error {
 			Street:     body.Street,
 			House:      body.House,
 			Apartment:  body.Apartment,
+			IsBlocked:  body.IsBlocked,
+			Role:       body.Role,
 		},
 		body.Password,
 	)
 	if err != nil {
-		r.l.Error(err, "restapi - v1 - createUser")
+		r.l.Error(err, "restapi - v1 - createUserByAdmin")
 		return userErrorResponse(ctx, err)
 	}
 
@@ -535,47 +540,4 @@ func (r *UsersV1) verifyEmailVerificationCode(ctx *fiber.Ctx) error {
 	}
 
 	return ctx.SendStatus(http.StatusNoContent)
-}
-
-// @Summary     Login
-// @Description Legacy login endpoint. Authenticates by login/email/phone + password and returns the user profile without issuing a JWT token. Prefer /auth/login for JWT-based auth.
-// @ID          users-login
-// @Tags  	    users
-// @Accept      json
-// @Produce     json
-// @Param       request body request.Login true "Credentials"
-// @Success     200 {object} entity.User
-// @Failure     400 {object} response.Error
-// @Failure     401 {object} response.Error
-// @Failure     403 {object} response.Error
-// @Failure     500 {object} response.Error
-// @Router      /users/login [post]
-func (r *UsersV1) login(ctx *fiber.Ctx) error {
-	var body request.Login
-	if err := ctx.BodyParser(&body); err != nil {
-		r.l.Error(err, "restapi - v1 - usersLogin")
-		return errorResponse(ctx, http.StatusBadRequest, "invalid request body")
-	}
-
-	if err := r.v.Struct(body); err != nil {
-		r.l.Error(err, "restapi - v1 - usersLogin")
-		return errorResponse(ctx, http.StatusBadRequest, formatValidationError(err))
-	}
-
-	user, err := r.u.Authenticate(ctx.UserContext(), body.Identifier, body.Password)
-	if err != nil {
-		r.l.Error(err, "restapi - v1 - usersLogin")
-		switch {
-		case errors.Is(err, usererr.ErrInvalidCredentials):
-			return errorResponse(ctx, http.StatusUnauthorized, "invalid credentials")
-		case errors.Is(err, usererr.ErrUserBlocked):
-			return errorResponse(ctx, http.StatusForbidden, "user is blocked")
-		case errors.Is(err, usererr.ErrEmailNotVerified):
-			return errorResponse(ctx, http.StatusForbidden, err.Error())
-		default:
-			return userErrorResponse(ctx, err)
-		}
-	}
-
-	return ctx.Status(http.StatusOK).JSON(user)
 }

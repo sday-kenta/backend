@@ -26,7 +26,8 @@ type (
 	}
 
 	User interface {
-		Create(context.Context, entity.User, string) (entity.User, error)
+		Register(context.Context, entity.User, string) (entity.User, error)
+		CreateByAdmin(context.Context, entity.User, string) (entity.User, error)
 		Delete(context.Context, int64) error
 		GetByID(context.Context, int64) (entity.User, error)
 		Authenticate(context.Context, string, string) (entity.User, error)

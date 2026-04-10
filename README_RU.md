@@ -163,16 +163,16 @@ SMTP_CODE=
 ### Auth
 
 - `POST /v1/auth/login`
+- `POST /v1/auth/register`
 
 ### Users
 
-- `POST /v1/users`
+- `POST /v1/users` - только admin
 - `GET /v1/users`
 - `GET /v1/users/{id}`
 - `PUT /v1/users/{id}`
 - `DELETE /v1/users/{id}`
 - `POST /v1/users/{id}/avatar`
-- `POST /v1/users/login`
 - `POST /v1/users/email-code/send`
 - `POST /v1/users/email-code/verify`
 - `POST /v1/users/password-reset/send-code`

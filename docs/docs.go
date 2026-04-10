@@ -74,6 +74,59 @@ const docTemplate = `{
                 }
             }
         },
+        "/auth/register": {
+            "post": {
+                "description": "Public registration endpoint. Creates a regular user registration that must be confirmed by email code.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Register",
+                "operationId": "register",
+                "parameters": [
+                    {
+                        "description": "User registration data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.CreateUser"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/entity.User"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/categories": {
             "get": {
                 "description": "Returns all active categories. Category icon URLs are returned in the icon_url field when an icon is uploaded.",
@@ -1644,7 +1697,12 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Public registration endpoint. Creates a regular user; role and blocked status are not accepted from the request.",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a user immediately without email confirmation flow. Admin only. Role and blocked status can be set during creation.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1654,8 +1712,8 @@ const docTemplate = `{
                 "tags": [
                     "users"
                 ],
-                "summary": "Create user",
-                "operationId": "create-user",
+                "summary": "Create user by admin",
+                "operationId": "create-user-by-admin",
                 "parameters": [
                     {
                         "description": "User data",
@@ -1663,7 +1721,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/request.CreateUser"
+                            "$ref": "#/definitions/request.CreateUserByAdmin"
                         }
                     }
                 ],
@@ -1676,6 +1734,18 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }
@@ -1770,65 +1840,6 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/response.Error"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/response.Error"
-                        }
-                    }
-                }
-            }
-        },
-        "/users/login": {
-            "post": {
-                "description": "Legacy login endpoint. Authenticates by login/email/phone + password and returns the user profile without issuing a JWT token. Prefer /auth/login for JWT-based auth.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "users"
-                ],
-                "summary": "Login",
-                "operationId": "users-login",
-                "parameters": [
-                    {
-                        "description": "Credentials",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/request.Login"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/entity.User"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/response.Error"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/response.Error"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }
@@ -2400,6 +2411,80 @@ const docTemplate = `{
                 "phone": {
                     "type": "string",
                     "example": "+79991234567"
+                },
+                "street": {
+                    "type": "string",
+                    "example": "Тверская"
+                }
+            }
+        },
+        "request.CreateUserByAdmin": {
+            "type": "object",
+            "required": [
+                "city",
+                "email",
+                "first_name",
+                "house",
+                "last_name",
+                "login",
+                "password",
+                "phone",
+                "street"
+            ],
+            "properties": {
+                "apartment": {
+                    "type": "string",
+                    "example": "10"
+                },
+                "city": {
+                    "type": "string",
+                    "example": "Москва"
+                },
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                },
+                "first_name": {
+                    "type": "string",
+                    "example": "Иван"
+                },
+                "house": {
+                    "type": "string",
+                    "example": "1"
+                },
+                "is_blocked": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "last_name": {
+                    "type": "string",
+                    "example": "Иванов"
+                },
+                "login": {
+                    "type": "string",
+                    "example": "user123"
+                },
+                "middle_name": {
+                    "type": "string",
+                    "example": "Иванович"
+                },
+                "password": {
+                    "type": "string",
+                    "minLength": 6,
+                    "example": "qwerty123"
+                },
+                "phone": {
+                    "type": "string",
+                    "example": "+79991234567"
+                },
+                "role": {
+                    "type": "string",
+                    "enum": [
+                        "user",
+                        "admin",
+                        "premium"
+                    ],
+                    "example": "user"
                 },
                 "street": {
                     "type": "string",

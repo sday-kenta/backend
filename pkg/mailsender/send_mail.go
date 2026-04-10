@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"log"
 	"mime"
 	"mime/multipart"
 	"net/smtp"
@@ -18,8 +17,10 @@ import (
 )
 
 func SendMail(subject string, body string, to []string) error {
-	smtpMailName := os.Getenv("SMTP_MAIL")
-	smtpMailCode := os.Getenv("SMTP_CODE")
+	smtpMailName, smtpMailCode, err := smtpCredentials()
+	if err != nil {
+		return err
+	}
 
 	auth := smtp.PlainAuth(
 		"",
@@ -28,18 +29,16 @@ func SendMail(subject string, body string, to []string) error {
 		"smtp.gmail.com",
 	)
 
-	msg := "Subject: " + subject + "\n" + body
+	msg := buildPlainTextMessage(subject, body, smtpMailName, to)
 
-	err := smtp.SendMail(
+	if err = smtp.SendMail(
 		"smtp.gmail.com:587",
 		auth,
 		smtpMailName,
 		to,
-		[]byte(msg),
-	)
-	if err != nil {
-		log.Printf("Failed to send email: %v", err)
-		return err
+		msg,
+	); err != nil {
+		return fmt.Errorf("send smtp mail: %w", err)
 	}
 
 	return nil
@@ -47,10 +46,9 @@ func SendMail(subject string, body string, to []string) error {
 
 // SendMailWithAttachment sends an HTML email with optional inline resources and attachments.
 func SendMailWithAttachment(subject, htmlBody string, to []string, attachmentName string, attachment []byte, attachmentContentType string, inlineAttachments []entity.InlineAttachment) error {
-	smtpMailName := os.Getenv("SMTP_MAIL")
-	smtpMailCode := os.Getenv("SMTP_CODE")
-	if smtpMailName == "" || smtpMailCode == "" {
-		return fmt.Errorf("smtp credentials are not configured")
+	smtpMailName, smtpMailCode, err := smtpCredentials()
+	if err != nil {
+		return err
 	}
 
 	auth := smtp.PlainAuth("", smtpMailName, smtpMailCode, "smtp.gmail.com")
@@ -178,4 +176,38 @@ func writeBase64Body(dst io.Writer, content []byte) error {
 		}
 	}
 	return nil
+}
+
+func smtpCredentials() (string, string, error) {
+	smtpMailName := strings.TrimSpace(os.Getenv("SMTP_MAIL"))
+	smtpMailCode := normalizeSMTPPassword(os.Getenv("SMTP_CODE"))
+	if smtpMailName == "" || smtpMailCode == "" {
+		return "", "", fmt.Errorf("smtp credentials are not configured")
+	}
+
+	return smtpMailName, smtpMailCode, nil
+}
+
+func normalizeSMTPPassword(raw string) string {
+	parts := strings.Fields(raw)
+	if len(parts) == 0 {
+		return ""
+	}
+
+	return strings.Join(parts, "")
+}
+
+func buildPlainTextMessage(subject, body, from string, to []string) []byte {
+	headers := []string{
+		fmt.Sprintf("From: %s", from),
+		fmt.Sprintf("To: %s", strings.Join(to, ", ")),
+		fmt.Sprintf("Subject: %s", mime.QEncoding.Encode("utf-8", subject)),
+		"MIME-Version: 1.0",
+		"Content-Type: text/plain; charset=utf-8",
+		"Content-Transfer-Encoding: 8bit",
+		"",
+		body,
+	}
+
+	return []byte(strings.Join(headers, "\r\n"))
 }

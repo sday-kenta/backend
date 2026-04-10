@@ -153,7 +153,7 @@ func (uc *UseCase) Update(ctx context.Context, requesterID int64, isAdmin bool, 
 			return entity.Incident{}, statusErr
 		}
 		if status == entity.IncidentStatusPublished && !isAdmin {
-			return entity.Incident{}, incidenterr.ErrForbidden
+			status = entity.IncidentStatusReview
 		}
 		incident.Status = status
 		if status == entity.IncidentStatusPublished {
