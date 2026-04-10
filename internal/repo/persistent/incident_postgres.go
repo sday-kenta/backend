@@ -182,6 +182,9 @@ func (r *IncidentRepo) List(ctx context.Context, filter entity.IncidentFilter) (
 	if filter.Status != nil {
 		builder = builder.Where(squirrel.Eq{"i.status": *filter.Status})
 	}
+	if len(filter.Statuses) > 0 {
+		builder = builder.Where(squirrel.Eq{"i.status": filter.Statuses})
+	}
 	if filter.OnlyPublished {
 		builder = builder.Where(squirrel.Eq{"i.status": entity.IncidentStatusPublished})
 	}

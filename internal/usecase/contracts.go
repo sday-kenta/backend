@@ -41,7 +41,7 @@ type (
 	}
 
 	Incident interface {
-		Create(context.Context, int64, entity.CreateIncidentInput) (entity.Incident, error)
+		Create(context.Context, int64, bool, entity.CreateIncidentInput) (entity.Incident, error)
 		List(context.Context, entity.IncidentFilter) ([]entity.Incident, error)
 		GetByID(context.Context, int64, bool, int64) (entity.Incident, error)
 		Update(context.Context, int64, bool, int64, entity.UpdateIncidentInput) (entity.Incident, error)

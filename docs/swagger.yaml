@@ -963,10 +963,24 @@ paths:
     get:
       consumes:
       - application/json
-      description: Возвращает общий список опубликованных сообщений. Черновики в эту
-        выборку не попадают.
+      description: Возвращает общий список инцидентов. Для обычного пользователя и
+        анонимного запроса возвращаются только published. Для администратора по умолчанию
+        возвращаются published и review, а query-параметр status можно передавать
+        несколько раз, чтобы выбрать нужные статусы.
       operationId: list-incidents
       parameters:
+      - description: Bearer access token. Для admin включает расширенный список и
+          фильтры по статусам.
+        in: header
+        name: Authorization
+        type: string
+      - collectionFormat: multi
+        description: Фильтр по статусам для admin; параметр можно повторять
+        in: query
+        items:
+          type: string
+        name: status
+        type: array
       - description: ID категории
         in: query
         name: category_id
@@ -988,15 +1002,16 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Error'
-      summary: Получить список всех опубликованных инцидентов
+      summary: Получить список инцидентов
       tags:
       - incidents
     post:
       consumes:
       - application/json
       description: Создает новое сообщение об инциденте для авторизованного пользователя.
-        Если статус не указан или передан как review/published, инцидент сохраняется
-        в статусе review.
+        Если статус не указан, инцидент сохраняется в review. Если обычный пользователь
+        передает published, статус понижается до review. Администратор может сохранить
+        published сразу.
       operationId: create-incident
       parameters:
       - description: Данные инцидента
@@ -1126,7 +1141,9 @@ paths:
       consumes:
       - application/json
       description: Обновляет сообщение об инциденте. Доступно только автору или администратору.
-        Статус published может установить только администратор.
+        Если обычный пользователь передает published, статус понижается до review.
+        Администратор может сохранить published сразу, но не может редактировать чужие
+        draft-инциденты.
       operationId: update-incident
       parameters:
       - description: ID инцидента
@@ -1317,7 +1334,8 @@ paths:
       consumes:
       - multipart/form-data
       description: Загружает одну или несколько фотографий инцидента. Используй multipart/form-data
-        с повторяемым полем photos. Доступно только автору или администратору.
+        с повторяемым полем photos. Доступно только автору инцидента. Администратор
+        не может загружать фотографии в чужие инциденты.
       operationId: upload-incident-photos
       parameters:
       - description: ID инцидента

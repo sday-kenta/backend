@@ -31,13 +31,13 @@ func New(r repo.IncidentRepo, userRepo repo.UserRepo, categoryRepo repo.Category
 }
 
 // Create creates a new incident and snapshots reporter data for document generation.
-func (uc *UseCase) Create(ctx context.Context, userID int64, input entity.CreateIncidentInput) (entity.Incident, error) {
+func (uc *UseCase) Create(ctx context.Context, userID int64, isAdmin bool, input entity.CreateIncidentInput) (entity.Incident, error) {
 	user, err := uc.ensureRequesterExists(ctx, userID)
 	if err != nil {
 		return entity.Incident{}, err
 	}
 
-	status, err := normalizeCreateStatus(input.Status)
+	status, err := normalizeRequestedStatus(input.Status, isAdmin)
 	if err != nil {
 		return entity.Incident{}, err
 	}
@@ -128,7 +128,7 @@ func (uc *UseCase) Update(ctx context.Context, requesterID int64, isAdmin bool, 
 	if err != nil {
 		return entity.Incident{}, err
 	}
-	if err = ensureCanManage(incident, requesterID, isAdmin); err != nil {
+	if err = ensureCanUpdate(incident, requesterID, isAdmin); err != nil {
 		return entity.Incident{}, err
 	}
 
@@ -148,20 +148,11 @@ func (uc *UseCase) Update(ctx context.Context, requesterID int64, isAdmin bool, 
 		incident.Description = strings.TrimSpace(*input.Description)
 	}
 	if input.Status != nil {
-		status, statusErr := normalizeStatus(*input.Status)
+		status, statusErr := normalizeRequestedStatus(*input.Status, isAdmin)
 		if statusErr != nil {
 			return entity.Incident{}, statusErr
 		}
-		if status == entity.IncidentStatusPublished && !isAdmin {
-			status = entity.IncidentStatusReview
-		}
-		incident.Status = status
-		if status == entity.IncidentStatusPublished {
-			now := time.Now().UTC()
-			incident.PublishedAt = &now
-		} else {
-			incident.PublishedAt = nil
-		}
+		applyIncidentStatus(&incident, status)
 	}
 	if input.DepartmentName != nil && strings.TrimSpace(*input.DepartmentName) != "" {
 		incident.DepartmentName = strings.TrimSpace(*input.DepartmentName)
@@ -246,7 +237,7 @@ func (uc *UseCase) CreatePhoto(ctx context.Context, requesterID int64, isAdmin b
 	if err != nil {
 		return entity.IncidentPhoto{}, err
 	}
-	if err = ensureCanManage(incident, requesterID, isAdmin); err != nil {
+	if err = ensureCanAddPhoto(incident, requesterID, isAdmin); err != nil {
 		return entity.IncidentPhoto{}, err
 	}
 
@@ -499,15 +490,26 @@ func normalizeStatus(status string) (string, error) {
 	}
 }
 
-func normalizeCreateStatus(status string) (string, error) {
+func normalizeRequestedStatus(status string, isAdmin bool) (string, error) {
 	status, err := normalizeStatus(status)
 	if err != nil {
 		return "", err
 	}
-	if status == entity.IncidentStatusPublished {
+	if status == entity.IncidentStatusPublished && !isAdmin {
 		return entity.IncidentStatusReview, nil
 	}
 	return status, nil
+}
+
+func applyIncidentStatus(incident *entity.Incident, status string) {
+	incident.Status = status
+	if status == entity.IncidentStatusPublished {
+		now := time.Now().UTC()
+		incident.PublishedAt = &now
+		return
+	}
+
+	incident.PublishedAt = nil
 }
 
 func ensureCanManage(incident entity.Incident, requesterID int64, isAdmin bool) error {
@@ -517,6 +519,28 @@ func ensureCanManage(incident entity.Incident, requesterID int64, isAdmin bool) 
 	if requesterID == 0 || incident.UserID != requesterID {
 		return incidenterr.ErrForbidden
 	}
+	return nil
+}
+
+func ensureCanUpdate(incident entity.Incident, requesterID int64, isAdmin bool) error {
+	if err := ensureCanManage(incident, requesterID, isAdmin); err != nil {
+		return err
+	}
+	if isAdmin && incident.UserID != requesterID && incident.Status == entity.IncidentStatusDraft {
+		return incidenterr.ErrForbidden
+	}
+
+	return nil
+}
+
+func ensureCanAddPhoto(incident entity.Incident, requesterID int64, isAdmin bool) error {
+	if err := ensureCanManage(incident, requesterID, isAdmin); err != nil {
+		return err
+	}
+	if incident.UserID != requesterID {
+		return incidenterr.ErrForbidden
+	}
+
 	return nil
 }
 

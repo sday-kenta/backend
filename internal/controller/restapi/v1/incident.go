@@ -91,7 +91,7 @@ func incidentErrorResponse(ctx *fiber.Ctx, err error) error {
 }
 
 // @Summary     Создать инцидент
-// @Description Создает новое сообщение об инциденте для авторизованного пользователя. Если статус не указан или передан как review/published, инцидент сохраняется в статусе review.
+// @Description Создает новое сообщение об инциденте для авторизованного пользователя. Если статус не указан, инцидент сохраняется в review. Если обычный пользователь передает published, статус понижается до review. Администратор может сохранить published сразу.
 // @ID          create-incident
 // @Tags        incidents
 // @Accept      json
@@ -120,7 +120,7 @@ func (r *IncidentsV1) createIncident(ctx *fiber.Ctx) error {
 		return errorResponse(ctx, http.StatusBadRequest, formatValidationError(err))
 	}
 
-	incident, err := r.i.Create(ctx.UserContext(), requester.UserID, entity.CreateIncidentInput{
+	incident, err := r.i.Create(ctx.UserContext(), requester.UserID, requester.IsAdmin, entity.CreateIncidentInput{
 		CategoryID:     body.CategoryID,
 		Title:          body.Title,
 		Description:    body.Description,
@@ -141,34 +141,82 @@ func (r *IncidentsV1) createIncident(ctx *fiber.Ctx) error {
 	return ctx.Status(http.StatusCreated).JSON(toIncidentResponse(incident))
 }
 
-// @Summary     Получить список всех опубликованных инцидентов
-// @Description Возвращает общий список опубликованных сообщений. Черновики в эту выборку не попадают.
+// @Summary     Получить список инцидентов
+// @Description Возвращает общий список инцидентов. Для обычного пользователя и анонимного запроса возвращаются только published. Для администратора по умолчанию возвращаются published и review, а query-параметр status можно передавать несколько раз, чтобы выбрать нужные статусы.
 // @ID          list-incidents
 // @Tags        incidents
 // @Accept      json
 // @Produce     json
+// @Param       Authorization header string false "Bearer access token. Для admin включает расширенный список и фильтры по статусам."
+// @Param       status query []string false "Фильтр по статусам для admin; параметр можно повторять" collectionFormat(multi)
 // @Param       category_id query int false "ID категории"
 // @Success     200 {array} response.Incident
 // @Failure     400 {object} response.Error
 // @Failure     500 {object} response.Error
 // @Router      /incidents [get]
 func (r *IncidentsV1) listIncidents(ctx *fiber.Ctx) error {
+	requester, err := requesterFromCtx(ctx)
+	if err != nil {
+		return errorResponse(ctx, http.StatusUnauthorized, err.Error())
+	}
+
 	var categoryID *int
 	if raw := strings.TrimSpace(ctx.Query("category_id")); raw != "" {
-		parsed, err := strconv.Atoi(raw)
-		if err != nil {
+		parsed, parseErr := strconv.Atoi(raw)
+		if parseErr != nil {
 			return errorResponse(ctx, http.StatusBadRequest, "invalid category_id")
 		}
 		categoryID = &parsed
 	}
 
-	incidents, err := r.i.List(ctx.UserContext(), entity.IncidentFilter{OnlyPublished: true, CategoryID: categoryID})
+	filter := entity.IncidentFilter{CategoryID: categoryID, OnlyPublished: true}
+	if requester.IsAdmin {
+		statuses, parseErr := parseIncidentStatusFilters(ctx.Context().QueryArgs().PeekMulti("status"))
+		if parseErr != nil {
+			return errorResponse(ctx, http.StatusBadRequest, "invalid status")
+		}
+		filter.OnlyPublished = false
+		if len(statuses) == 0 {
+			filter.Statuses = []string{entity.IncidentStatusPublished, entity.IncidentStatusReview}
+		} else {
+			filter.Statuses = statuses
+		}
+	}
+
+	incidents, err := r.i.List(ctx.UserContext(), filter)
 	if err != nil {
 		r.l.Error(err, "restapi - v1 - listIncidents")
 		return incidentErrorResponse(ctx, err)
 	}
 
 	return ctx.Status(http.StatusOK).JSON(toIncidentResponses(incidents))
+}
+
+func parseIncidentStatusFilters(values [][]byte) ([]string, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+
+	statuses := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, rawValue := range values {
+		status := strings.TrimSpace(strings.ToLower(string(rawValue)))
+		if status == "" {
+			continue
+		}
+		switch status {
+		case entity.IncidentStatusDraft, entity.IncidentStatusReview, entity.IncidentStatusPublished:
+		default:
+			return nil, incidenterr.ErrInvalidStatus
+		}
+		if _, ok := seen[status]; ok {
+			continue
+		}
+		seen[status] = struct{}{}
+		statuses = append(statuses, status)
+	}
+
+	return statuses, nil
 }
 
 // @Summary     Получить мои инциденты
@@ -257,7 +305,7 @@ func (r *IncidentsV1) getIncident(ctx *fiber.Ctx) error {
 }
 
 // @Summary     Обновить инцидент
-// @Description Обновляет сообщение об инциденте. Доступно только автору или администратору. Статус published может установить только администратор.
+// @Description Обновляет сообщение об инциденте. Доступно только автору или администратору. Если обычный пользователь передает published, статус понижается до review. Администратор может сохранить published сразу, но не может редактировать чужие draft-инциденты.
 // @ID          update-incident
 // @Tags        incidents
 // @Accept      json
@@ -314,13 +362,17 @@ func (r *IncidentsV1) updateIncident(ctx *fiber.Ctx) error {
 		r.l.Error(err, "restapi - v1 - updateIncident")
 		return incidentErrorResponse(ctx, err)
 	}
-	if notification, ok := pushuc.BuildIncidentStatusNotification(before, incident, requester.UserID); ok {
-		if notifyErr := r.p.NotifyIncidentStatusChanged(ctx.UserContext(), notification); notifyErr != nil {
-			r.l.Error(fmt.Errorf("restapi - v1 - updateIncident - NotifyIncidentStatusChanged: %w", notifyErr))
-		}
-	}
+	r.notifyIncidentStatusChanged(ctx, before, incident, requester.UserID, "updateIncident")
 
 	return ctx.Status(http.StatusOK).JSON(toIncidentResponse(incident))
+}
+
+func (r *IncidentsV1) notifyIncidentStatusChanged(ctx *fiber.Ctx, before, after entity.Incident, actorUserID int64, action string) {
+	if notification, ok := pushuc.BuildIncidentStatusNotification(before, after, actorUserID); ok {
+		if notifyErr := r.p.NotifyIncidentStatusChanged(ctx.UserContext(), notification); notifyErr != nil {
+			r.l.Error(fmt.Errorf("restapi - v1 - %s - NotifyIncidentStatusChanged: %w", action, notifyErr))
+		}
+	}
 }
 
 // @Summary     Удалить инцидент
@@ -370,7 +422,7 @@ func (r *IncidentsV1) deleteIncident(ctx *fiber.Ctx) error {
 }
 
 // @Summary     Загрузить фотографии инцидента
-// @Description Загружает одну или несколько фотографий инцидента. Используй multipart/form-data с повторяемым полем photos. Доступно только автору или администратору.
+// @Description Загружает одну или несколько фотографий инцидента. Используй multipart/form-data с повторяемым полем photos. Доступно только автору инцидента. Администратор не может загружать фотографии в чужие инциденты.
 // @ID          upload-incident-photos
 // @Tags        incidents
 // @Accept      multipart/form-data

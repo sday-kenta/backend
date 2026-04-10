@@ -246,12 +246,19 @@ This keeps map behavior, filtering, and document generation simple without intro
 ### Incident statuses
 
 - `draft`
+- `review`
 - `published`
 
 Behavior:
-- `GET /v1/incidents` returns **published only**;
-- `GET /v1/my/incidents` returns current user's incidents, including drafts;
-- draft details are visible only to the author or admin.
+- `GET /v1/incidents` returns **published only** for regular users and anonymous requests;
+- for admins, `GET /v1/incidents` returns `published + review` by default;
+- admins may repeat the `status` query parameter, for example `?status=review&status=published`, to control which statuses are returned;
+- `GET /v1/my/incidents` returns current user's incidents, including drafts and review items;
+- draft and review details are visible only to the author or admin;
+- when a regular user sends `status=published` in `POST /v1/incidents` or `PATCH /v1/incidents/{id}`, the backend stores `review` instead;
+- an admin may store `published` directly.
+- an admin cannot edit another user's `draft` incident through `PATCH /v1/incidents/{id}`.
+- only the incident author may upload photos; an admin may still delete another user's incident or photos.
 
 ### Incident photos
 
