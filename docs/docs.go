@@ -2552,9 +2552,11 @@ const docTemplate = `{
                     "type": "string",
                     "enum": [
                         "android",
-                        "ios"
+                        "ios",
+                        "web",
+                        "pwa"
                     ],
-                    "example": "android"
+                    "example": "web"
                 }
             }
         },

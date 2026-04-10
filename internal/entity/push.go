@@ -5,6 +5,7 @@ import "time"
 const (
 	PushPlatformAndroid = "android"
 	PushPlatformIOS     = "ios"
+	PushPlatformWeb     = "web"
 
 	NotificationTypeIncidentPublished = "incident_published"
 	NotificationTypeIncidentRejected  = "incident_rejected"

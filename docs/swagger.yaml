@@ -226,7 +226,9 @@ definitions:
         enum:
         - android
         - ios
-        example: android
+        - web
+        - pwa
+        example: web
         type: string
     required:
     - device_id

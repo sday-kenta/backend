@@ -85,9 +85,12 @@ func TestNotifyIncidentStatusChangedDeletesUnregisteredTokenAndKeepsSuccessfulSe
 type pushDeviceRepoStub struct {
 	devices       []entity.PushDevice
 	deletedTokens []string
+	upserted      *entity.PushDevice
 }
 
-func (s *pushDeviceRepoStub) Upsert(_ context.Context, _ *entity.PushDevice) error {
+func (s *pushDeviceRepoStub) Upsert(_ context.Context, device *entity.PushDevice) error {
+	deviceCopy := *device
+	s.upserted = &deviceCopy
 	return nil
 }
 
@@ -143,4 +146,22 @@ func TestNotifyIncidentStatusChangedReturnsErrorWhenEverySendFails(t *testing.T)
 	})
 
 	require.Error(t, err)
+}
+
+func TestRegisterDeviceNormalizesPWAPlatformToWeb(t *testing.T) {
+	t.Parallel()
+
+	repo := &pushDeviceRepoStub{}
+	uc := New(repo, nil)
+
+	err := uc.RegisterDevice(context.Background(), 1, entity.UpsertPushDeviceInput{
+		DeviceID:   "device-1",
+		Platform:   "pwa",
+		FCMToken:   "token",
+		AppVersion: "1.0.0",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, repo.upserted)
+	require.Equal(t, entity.PushPlatformWeb, repo.upserted.Platform)
 }

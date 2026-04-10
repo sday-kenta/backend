@@ -32,7 +32,7 @@ func (uc *UseCase) RegisterDevice(ctx context.Context, userID int64, input entit
 	device := &entity.PushDevice{
 		UserID:     userID,
 		DeviceID:   strings.TrimSpace(input.DeviceID),
-		Platform:   strings.ToLower(strings.TrimSpace(input.Platform)),
+		Platform:   normalizePlatform(input.Platform),
 		FCMToken:   strings.TrimSpace(input.FCMToken),
 		AppVersion: strings.TrimSpace(input.AppVersion),
 	}
@@ -131,4 +131,13 @@ func notificationData(notification entity.PushNotification) map[string]string {
 	}
 
 	return data
+}
+
+func normalizePlatform(platform string) string {
+	platform = strings.ToLower(strings.TrimSpace(platform))
+	if platform == "pwa" {
+		return entity.PushPlatformWeb
+	}
+
+	return platform
 }

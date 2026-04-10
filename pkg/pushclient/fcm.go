@@ -91,30 +91,7 @@ func NewFCMSender(ctx context.Context, cfg Config) (Sender, error) {
 
 func (s *FCMSender) Send(ctx context.Context, msg Message) error {
 	requestBody, err := json.Marshal(fcmSendRequest{
-		Message: fcmRequestMessage{
-			Token: strings.TrimSpace(msg.Token),
-			Notification: &fcmNotification{
-				Title: strings.TrimSpace(msg.Title),
-				Body:  strings.TrimSpace(msg.Body),
-			},
-			Data: sanitizeData(msg.Data),
-			Android: &fcmAndroidConfig{
-				Priority: "high",
-				Notification: &fcmAndroidNotification{
-					Sound: "default",
-				},
-			},
-			APNS: &fcmAPNSConfig{
-				Headers: map[string]string{
-					"apns-priority": "10",
-				},
-				Payload: &fcmAPNSPayload{
-					APS: fcmAPS{
-						Sound: "default",
-					},
-				},
-			},
-		},
+		Message: buildFCMRequestMessage(msg),
 	})
 	if err != nil {
 		return fmt.Errorf("marshal fcm request: %w", err)
@@ -158,6 +135,7 @@ type fcmRequestMessage struct {
 	Data         map[string]string `json:"data,omitempty"`
 	Android      *fcmAndroidConfig `json:"android,omitempty"`
 	APNS         *fcmAPNSConfig    `json:"apns,omitempty"`
+	Webpush      *fcmWebpushConfig `json:"webpush,omitempty"`
 }
 
 type fcmNotification struct {
@@ -185,6 +163,17 @@ type fcmAPNSPayload struct {
 
 type fcmAPS struct {
 	Sound string `json:"sound,omitempty"`
+}
+
+type fcmWebpushConfig struct {
+	Headers      map[string]string       `json:"headers,omitempty"`
+	Notification *fcmWebpushNotification `json:"notification,omitempty"`
+}
+
+type fcmWebpushNotification struct {
+	Title string            `json:"title,omitempty"`
+	Body  string            `json:"body,omitempty"`
+	Data  map[string]string `json:"data,omitempty"`
 }
 
 type fcmErrorResponse struct {
@@ -255,4 +244,45 @@ func sanitizeData(data map[string]string) map[string]string {
 	}
 
 	return result
+}
+
+func buildFCMRequestMessage(msg Message) fcmRequestMessage {
+	title := strings.TrimSpace(msg.Title)
+	body := strings.TrimSpace(msg.Body)
+	data := sanitizeData(msg.Data)
+
+	return fcmRequestMessage{
+		Token: strings.TrimSpace(msg.Token),
+		Notification: &fcmNotification{
+			Title: title,
+			Body:  body,
+		},
+		Data: data,
+		Android: &fcmAndroidConfig{
+			Priority: "high",
+			Notification: &fcmAndroidNotification{
+				Sound: "default",
+			},
+		},
+		APNS: &fcmAPNSConfig{
+			Headers: map[string]string{
+				"apns-priority": "10",
+			},
+			Payload: &fcmAPNSPayload{
+				APS: fcmAPS{
+					Sound: "default",
+				},
+			},
+		},
+		Webpush: &fcmWebpushConfig{
+			Headers: map[string]string{
+				"Urgency": "high",
+			},
+			Notification: &fcmWebpushNotification{
+				Title: title,
+				Body:  body,
+				Data:  data,
+			},
+		},
+	}
 }
