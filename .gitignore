@@ -2,3 +2,4 @@
 *ai.txt
 *.txt
 .codex
+#/firebase-service-account.json

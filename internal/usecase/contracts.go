@@ -26,7 +26,8 @@ type (
 	}
 
 	User interface {
-		Create(context.Context, entity.User, string) (entity.User, error)
+		Register(context.Context, entity.User, string) (entity.User, error)
+		CreateByAdmin(context.Context, entity.User, string) (entity.User, error)
 		Delete(context.Context, int64) error
 		GetByID(context.Context, int64) (entity.User, error)
 		Authenticate(context.Context, string, string) (entity.User, error)
@@ -40,7 +41,7 @@ type (
 	}
 
 	Incident interface {
-		Create(context.Context, int64, entity.CreateIncidentInput) (entity.Incident, error)
+		Create(context.Context, int64, bool, entity.CreateIncidentInput) (entity.Incident, error)
 		List(context.Context, entity.IncidentFilter) ([]entity.Incident, error)
 		GetByID(context.Context, int64, bool, int64) (entity.Incident, error)
 		Update(context.Context, int64, bool, int64, entity.UpdateIncidentInput) (entity.Incident, error)
@@ -49,5 +50,11 @@ type (
 		DeletePhoto(context.Context, int64, bool, int64, int64) (entity.IncidentPhoto, error)
 		RenderDocument(context.Context, int64, bool, int64) (entity.IncidentDocument, error)
 		SendDocumentByEmail(context.Context, int64, bool, int64, string) error
+	}
+
+	Push interface {
+		RegisterDevice(context.Context, int64, entity.UpsertPushDeviceInput) error
+		DeleteDevice(context.Context, int64, string) error
+		NotifyIncidentStatusChanged(context.Context, entity.PushNotification) error
 	}
 )

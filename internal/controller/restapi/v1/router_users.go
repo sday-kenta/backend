@@ -18,8 +18,7 @@ func NewUserRoutes(apiV1Group fiber.Router, u usecase.User, l logger.Interface, 
 
 	usersGroup := apiV1Group.Group("/users")
 	{
-		usersGroup.Post("", r.createUser)
-		usersGroup.Post("/login", r.login)
+		usersGroup.Post("", authmw.RequireAdmin(), r.createUserByAdmin)
 		usersGroup.Post("/email-code/send", r.sendEmailVerificationCode)
 		usersGroup.Post("/email-code/verify", r.verifyEmailVerificationCode)
 		usersGroup.Delete("/:id", authmw.RequireAdmin(), r.deleteUser)

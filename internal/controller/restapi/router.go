@@ -27,7 +27,7 @@ import (
 // @version     1.0
 // @host        localhost:8080
 // @BasePath    /v1
-func NewRouter(app *fiber.App, cfg *config.Config, c usecase.Category, g usecase.Geo, u usecase.User, i usecase.Incident, l logger.Interface) {
+func NewRouter(app *fiber.App, cfg *config.Config, c usecase.Category, g usecase.Geo, u usecase.User, i usecase.Incident, p usecase.Push, l logger.Interface) {
 	app.Use(middleware.Logger(l, cfg.Log))
 	app.Use(middleware.Recovery(l))
 
@@ -71,8 +71,9 @@ func NewRouter(app *fiber.App, cfg *config.Config, c usecase.Category, g usecase
 		if incidentMediaBaseURL == "" {
 			incidentMediaBaseURL = cfg.CDN.AvatarBaseURL
 		}
-		v1.NewIncidentRoutes(apiV1Group, i, l, incidentMediaBaseURL)
+		v1.NewIncidentRoutes(apiV1Group, i, p, l, incidentMediaBaseURL)
 		v1.NewAuthRoutes(apiV1Group, u, l, jwtManager)
+		v1.NewPushRoutes(apiV1Group, p, l)
 		v1.NewFeedbackRoutes(apiV1Group, l)
 	}
 }

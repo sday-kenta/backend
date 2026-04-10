@@ -11,19 +11,21 @@ import (
 	"github.com/sday-kenta/backend/internal/incidenterr"
 )
 
-func TestNormalizeCreateStatus(t *testing.T) {
+func TestNormalizeRequestedStatus(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		input  string
-		want   string
-		hasErr bool
+		name    string
+		input   string
+		isAdmin bool
+		want    string
+		hasErr  bool
 	}{
-		{name: "empty becomes review", input: "", want: entity.IncidentStatusReview},
+		{name: "empty becomes review for user", input: "", want: entity.IncidentStatusReview},
 		{name: "draft stays draft", input: entity.IncidentStatusDraft, want: entity.IncidentStatusDraft},
 		{name: "review stays review", input: entity.IncidentStatusReview, want: entity.IncidentStatusReview},
-		{name: "published becomes review", input: entity.IncidentStatusPublished, want: entity.IncidentStatusReview},
+		{name: "published becomes review for user", input: entity.IncidentStatusPublished, want: entity.IncidentStatusReview},
+		{name: "published stays published for admin", input: entity.IncidentStatusPublished, isAdmin: true, want: entity.IncidentStatusPublished},
 		{name: "invalid rejected", input: "unknown", hasErr: true},
 	}
 
@@ -32,7 +34,7 @@ func TestNormalizeCreateStatus(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := normalizeCreateStatus(tt.input)
+			got, err := normalizeRequestedStatus(tt.input, tt.isAdmin)
 			if tt.hasErr {
 				require.ErrorIs(t, err, incidenterr.ErrInvalidStatus)
 				return
@@ -44,7 +46,7 @@ func TestNormalizeCreateStatus(t *testing.T) {
 	}
 }
 
-func TestUpdateNonAdminCannotPublishIncident(t *testing.T) {
+func TestUpdateNonAdminPublishMovesIncidentToReview(t *testing.T) {
 	t.Parallel()
 
 	repo := &incidentRepoStub{
@@ -66,10 +68,248 @@ func TestUpdateNonAdminCannotPublishIncident(t *testing.T) {
 	)
 
 	status := entity.IncidentStatusPublished
-	_, err := uc.Update(context.Background(), 7, false, 42, entity.UpdateIncidentInput{Status: &status})
+	updated, err := uc.Update(context.Background(), 7, false, 42, entity.UpdateIncidentInput{Status: &status})
+
+	require.NoError(t, err)
+	require.True(t, repo.updateCalled)
+	require.Equal(t, entity.IncidentStatusReview, updated.Status)
+	require.Nil(t, updated.PublishedAt)
+}
+
+func TestUpdateAdminCannotEditOtherUsersDraft(t *testing.T) {
+	t.Parallel()
+
+	repo := &incidentRepoStub{
+		incident: entity.Incident{
+			ID:          42,
+			UserID:      7,
+			CategoryID:  1,
+			Title:       "title",
+			Description: "description",
+			Status:      entity.IncidentStatusDraft,
+			AddressText: "Самара",
+		},
+	}
+	uc := New(
+		repo,
+		userRepoStub{user: entity.User{ID: 99}},
+		categoryRepoStub{},
+		nil,
+	)
+
+	status := entity.IncidentStatusPublished
+	title := "edited by admin"
+	_, err := uc.Update(context.Background(), 99, true, 42, entity.UpdateIncidentInput{
+		Status: &status,
+		Title:  &title,
+	})
 
 	require.ErrorIs(t, err, incidenterr.ErrForbidden)
 	require.False(t, repo.updateCalled)
+}
+
+func TestUpdateAdminCanEditOwnDraft(t *testing.T) {
+	t.Parallel()
+
+	repo := &incidentRepoStub{
+		incident: entity.Incident{
+			ID:          42,
+			UserID:      99,
+			CategoryID:  1,
+			Title:       "title",
+			Description: "description",
+			Status:      entity.IncidentStatusDraft,
+			AddressText: "Самара",
+		},
+	}
+	uc := New(
+		repo,
+		userRepoStub{user: entity.User{ID: 99}},
+		categoryRepoStub{},
+		nil,
+	)
+
+	status := entity.IncidentStatusPublished
+	updated, err := uc.Update(context.Background(), 99, true, 42, entity.UpdateIncidentInput{Status: &status})
+
+	require.NoError(t, err)
+	require.True(t, repo.updateCalled)
+	require.Equal(t, entity.IncidentStatusPublished, updated.Status)
+}
+
+func TestUpdateAdminCanEditOtherUsersReview(t *testing.T) {
+	t.Parallel()
+
+	repo := &incidentRepoStub{
+		incident: entity.Incident{
+			ID:          42,
+			UserID:      7,
+			CategoryID:  1,
+			Title:       "title",
+			Description: "description",
+			Status:      entity.IncidentStatusReview,
+			AddressText: "Самара",
+		},
+	}
+	uc := New(
+		repo,
+		userRepoStub{user: entity.User{ID: 99}},
+		categoryRepoStub{},
+		nil,
+	)
+
+	status := entity.IncidentStatusPublished
+	updated, err := uc.Update(context.Background(), 99, true, 42, entity.UpdateIncidentInput{Status: &status})
+
+	require.NoError(t, err)
+	require.True(t, repo.updateCalled)
+	require.Equal(t, entity.IncidentStatusPublished, updated.Status)
+	require.NotNil(t, updated.PublishedAt)
+}
+
+func TestCreateNonAdminPublishedMovesToReview(t *testing.T) {
+	t.Parallel()
+
+	repo := &incidentRepoStub{
+		incident: entity.Incident{},
+	}
+	uc := New(
+		repo,
+		userRepoStub{user: entity.User{ID: 7}},
+		categoryRepoStub{},
+		nil,
+	)
+
+	created, err := uc.Create(context.Background(), 7, false, entity.CreateIncidentInput{
+		CategoryID:  1,
+		Title:       "title",
+		Description: "description",
+		Status:      entity.IncidentStatusPublished,
+		AddressText: "Самара",
+		Latitude:    floatPtr(53.1959),
+		Longitude:   floatPtr(50.1008),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, entity.IncidentStatusReview, created.Status)
+	require.Nil(t, created.PublishedAt)
+}
+
+func TestCreateAdminPublishedStaysPublished(t *testing.T) {
+	t.Parallel()
+
+	repo := &incidentRepoStub{
+		incident: entity.Incident{},
+	}
+	uc := New(
+		repo,
+		userRepoStub{user: entity.User{ID: 99}},
+		categoryRepoStub{},
+		nil,
+	)
+
+	created, err := uc.Create(context.Background(), 99, true, entity.CreateIncidentInput{
+		CategoryID:  1,
+		Title:       "title",
+		Description: "description",
+		Status:      entity.IncidentStatusPublished,
+		AddressText: "Самара",
+		Latitude:    floatPtr(53.1959),
+		Longitude:   floatPtr(50.1008),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, entity.IncidentStatusPublished, created.Status)
+	require.NotNil(t, created.PublishedAt)
+}
+
+func TestCreatePhotoAdminCannotAddToOtherUsersIncident(t *testing.T) {
+	t.Parallel()
+
+	repo := &incidentRepoStub{
+		incident: entity.Incident{
+			ID:          42,
+			UserID:      7,
+			CategoryID:  1,
+			Title:       "title",
+			Description: "description",
+			Status:      entity.IncidentStatusReview,
+			AddressText: "Самара",
+		},
+	}
+	uc := New(
+		repo,
+		userRepoStub{user: entity.User{ID: 99}},
+		categoryRepoStub{},
+		nil,
+	)
+
+	_, err := uc.CreatePhoto(context.Background(), 99, true, 42, entity.IncidentPhoto{
+		FileKey: "incidents/42/photo.jpg",
+		FileURL: "http://example.com/photo.jpg",
+	})
+
+	require.ErrorIs(t, err, incidenterr.ErrForbidden)
+	require.False(t, repo.createPhotoCalled)
+}
+
+func TestCreatePhotoAuthorCanAddToOwnIncident(t *testing.T) {
+	t.Parallel()
+
+	repo := &incidentRepoStub{
+		incident: entity.Incident{
+			ID:          42,
+			UserID:      7,
+			CategoryID:  1,
+			Title:       "title",
+			Description: "description",
+			Status:      entity.IncidentStatusDraft,
+			AddressText: "Самара",
+		},
+	}
+	uc := New(
+		repo,
+		userRepoStub{user: entity.User{ID: 7}},
+		categoryRepoStub{},
+		nil,
+	)
+
+	photo, err := uc.CreatePhoto(context.Background(), 7, false, 42, entity.IncidentPhoto{
+		FileKey: "incidents/42/photo.jpg",
+		FileURL: "http://example.com/photo.jpg",
+	})
+
+	require.NoError(t, err)
+	require.True(t, repo.createPhotoCalled)
+	require.Equal(t, int64(42), photo.IncidentID)
+	require.Equal(t, 0, photo.SortOrder)
+}
+
+func TestDeletePhotoAdminCanDeleteFromOtherUsersIncident(t *testing.T) {
+	t.Parallel()
+
+	repo := &incidentRepoStub{
+		incident: entity.Incident{
+			ID:          42,
+			UserID:      7,
+			CategoryID:  1,
+			Title:       "title",
+			Description: "description",
+			Status:      entity.IncidentStatusReview,
+			AddressText: "Самара",
+		},
+	}
+	uc := New(
+		repo,
+		userRepoStub{user: entity.User{ID: 99}},
+		categoryRepoStub{},
+		nil,
+	)
+
+	_, err := uc.DeletePhoto(context.Background(), 99, true, 42, 10)
+
+	require.NoError(t, err)
+	require.True(t, repo.deletePhotoCalled)
 }
 
 func TestRenderIncidentHTMLUsesImageTagWithoutDistortion(t *testing.T) {
@@ -112,8 +352,14 @@ func TestEnsureCanViewAllowsPublishedForAnonymous(t *testing.T) {
 }
 
 type incidentRepoStub struct {
-	incident     entity.Incident
-	updateCalled bool
+	incident          entity.Incident
+	updateCalled      bool
+	createPhotoCalled bool
+	deletePhotoCalled bool
+}
+
+func floatPtr(v float64) *float64 {
+	return &v
 }
 
 func (s *incidentRepoStub) Create(_ context.Context, incident *entity.Incident) error {
@@ -143,11 +389,16 @@ func (s *incidentRepoStub) Delete(_ context.Context, _ int64) error {
 	return nil
 }
 
-func (s *incidentRepoStub) CreatePhoto(_ context.Context, _ *entity.IncidentPhoto) error {
+func (s *incidentRepoStub) CreatePhoto(_ context.Context, photo *entity.IncidentPhoto) error {
+	s.createPhotoCalled = true
+	if photo.ID == 0 {
+		photo.ID = 1
+	}
 	return nil
 }
 
 func (s *incidentRepoStub) DeletePhoto(_ context.Context, _, _ int64) (entity.IncidentPhoto, error) {
+	s.deletePhotoCalled = true
 	return entity.IncidentPhoto{}, nil
 }
 

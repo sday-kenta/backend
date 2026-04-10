@@ -59,4 +59,11 @@ type (
 		CreatePhoto(ctx context.Context, photo *entity.IncidentPhoto) error
 		DeletePhoto(ctx context.Context, incidentID, photoID int64) (entity.IncidentPhoto, error)
 	}
+
+	PushDeviceRepo interface {
+		Upsert(ctx context.Context, device *entity.PushDevice) error
+		ListByUserID(ctx context.Context, userID int64) ([]entity.PushDevice, error)
+		DeleteByUserAndDeviceID(ctx context.Context, userID int64, deviceID string) error
+		DeleteByToken(ctx context.Context, token string) error
+	}
 )

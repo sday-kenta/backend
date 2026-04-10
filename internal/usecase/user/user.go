@@ -63,7 +63,7 @@ func (uc *UseCase) EnsureBootstrapAdmin(ctx context.Context, cfg config.AdminBoo
 		return entity.User{}, fmt.Errorf("UserUseCase - EnsureBootstrapAdmin - uc.repo.GetByIdentifier: %w", err)
 	}
 
-	admin, err := uc.Create(ctx, entity.User{
+	admin, err := uc.CreateByAdmin(ctx, entity.User{
 		Login:      login,
 		Email:      email,
 		LastName:   strings.TrimSpace(cfg.LastName),
@@ -78,7 +78,7 @@ func (uc *UseCase) EnsureBootstrapAdmin(ctx context.Context, cfg config.AdminBoo
 		Role:       "admin",
 	}, password)
 	if err != nil {
-		return entity.User{}, fmt.Errorf("UserUseCase - EnsureBootstrapAdmin - uc.Create: %w", err)
+		return entity.User{}, fmt.Errorf("UserUseCase - EnsureBootstrapAdmin - uc.CreateByAdmin: %w", err)
 	}
 
 	return admin, nil
@@ -113,22 +113,31 @@ func normalizePhone(phone *string) error {
 	return nil
 }
 
-// Create создаёт пользователя. Саморегистрация (не admin): только заявка в pending_registrations до подтверждения email.
-func (uc *UseCase) Create(ctx context.Context, u entity.User, password string) (entity.User, error) {
+// Register creates a regular user registration request that must be confirmed by email code.
+func (uc *UseCase) Register(ctx context.Context, u entity.User, password string) (entity.User, error) {
 	if err := normalizePhone(&u.Phone); err != nil {
 		return entity.User{}, err
 	}
 	u.Email = normalizeEmail(u.Email)
 	u.Login = strings.TrimSpace(u.Login)
-	if u.Role == "" {
-		u.Role = "user"
-	}
-
-	if strings.EqualFold(u.Role, "admin") {
-		return uc.createUserDirect(ctx, u, password)
-	}
+	u.Role = entity.UserRoleUser
+	u.IsBlocked = false
 
 	return uc.createPendingRegistration(ctx, u, password)
+}
+
+// CreateByAdmin creates a user immediately without email confirmation flow.
+func (uc *UseCase) CreateByAdmin(ctx context.Context, u entity.User, password string) (entity.User, error) {
+	if err := normalizePhone(&u.Phone); err != nil {
+		return entity.User{}, err
+	}
+	u.Email = normalizeEmail(u.Email)
+	u.Login = strings.TrimSpace(u.Login)
+	if strings.TrimSpace(u.Role) == "" {
+		u.Role = entity.UserRoleUser
+	}
+
+	return uc.createUserDirect(ctx, u, password)
 }
 
 func (uc *UseCase) createUserDirect(ctx context.Context, u entity.User, password string) (entity.User, error) {

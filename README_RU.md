@@ -66,11 +66,17 @@ cp .env.example .env
 - `INCIDENT_MEDIA_BASE_URL`
 - `SMTP_MAIL`
 - `SMTP_CODE`
+- `SMTP_HOST`
+- `SMTP_PORT`
 
 `SMTP_MAIL` и `SMTP_CODE` нужны для:
 - `POST /v1/users/email-code/send`
 - `POST /v1/users/password-reset/send-code`
 - `POST /v1/incidents/{id}/document/email`
+
+SMTP-сервер можно переопределить переменными:
+- `SMTP_HOST` (по умолчанию: `smtp.mail.ru`)
+- `SMTP_PORT` (по умолчанию: `587`)
 
 ### 2. Поднять стек
 
@@ -143,6 +149,8 @@ INCIDENT_MEDIA_BASE_URL=http://localhost:9000/avatars
 
 SMTP_MAIL=
 SMTP_CODE=
+SMTP_HOST=smtp.mail.ru
+SMTP_PORT=587
 ```
 
 Примечания:
@@ -163,16 +171,16 @@ SMTP_CODE=
 ### Auth
 
 - `POST /v1/auth/login`
+- `POST /v1/auth/register`
 
 ### Users
 
-- `POST /v1/users`
+- `POST /v1/users` - только admin
 - `GET /v1/users`
 - `GET /v1/users/{id}`
 - `PUT /v1/users/{id}`
 - `DELETE /v1/users/{id}`
 - `POST /v1/users/{id}/avatar`
-- `POST /v1/users/login`
 - `POST /v1/users/email-code/send`
 - `POST /v1/users/email-code/verify`
 - `POST /v1/users/password-reset/send-code`
@@ -244,12 +252,19 @@ SMTP_CODE=
 ### Статусы инцидента
 
 - `draft`
+- `review`
 - `published`
 
 Поведение:
-- `GET /v1/incidents` возвращает только **published**;
-- `GET /v1/my/incidents` возвращает инциденты текущего пользователя, включая черновики;
-- draft доступен только автору или администратору.
+- `GET /v1/incidents` возвращает только **published** для обычного пользователя и анонимного запроса;
+- для администратора `GET /v1/incidents` по умолчанию возвращает `published + review`;
+- администратор может повторять query-параметр `status`, например `?status=review&status=published`, чтобы управлять выдачей по статусам;
+- `GET /v1/my/incidents` возвращает инциденты текущего пользователя, включая черновики и записи на модерации;
+- draft и review доступны только автору или администратору;
+- если обычный пользователь передает `status=published` в `POST /v1/incidents` или `PATCH /v1/incidents/{id}`, бэкенд сохраняет `review`;
+- администратор может сохранить `published` напрямую.
+- администратор не может редактировать чужой `draft` через `PATCH /v1/incidents/{id}`.
+- загружать фото может только автор инцидента; при этом администратор по-прежнему может удалять чужой инцидент и его фотографии.
 
 ### Фото инцидента
 

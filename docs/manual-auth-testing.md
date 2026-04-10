@@ -3,7 +3,7 @@
 Документ покрывает **только 3 ручки**, которые реально используются во фронтенде (`AuthPanel`):
 
 - `POST /v1/auth/login`
-- `POST /v1/users`
+- `POST /v1/auth/register`
 - `POST /v1/users/email-code/send`
 
 ## База
@@ -46,8 +46,8 @@ curl -i -X POST "http://localhost:8080/v1/auth/login" \
 
 ## 2) Регистрация пользователя
 
-- **Endpoint:** `POST /v1/users`
-- **Назначение:** создание пользователя
+- **Endpoint:** `POST /v1/auth/register`
+- **Назначение:** публичная регистрация пользователя
 
 ### Тело запроса (минимально валидный пример)
 
@@ -63,18 +63,16 @@ curl -i -X POST "http://localhost:8080/v1/auth/login" \
   "city": "Москва",
   "street": "Тверская",
   "house": "10",
-  "apartment": "15",
-  "is_blocked": false,
-  "role": "user"
+  "apartment": "15"
 }
 ```
 
 ### Пример curl
 
 ```bash
-curl -i -X POST "http://localhost:8080/v1/users" \
+curl -i -X POST "http://localhost:8080/v1/auth/register" \
   -H "Content-Type: application/json" \
-  -d "{\"login\":\"user123\",\"email\":\"user@example.com\",\"password\":\"qwerty123\",\"last_name\":\"Иванов\",\"first_name\":\"Иван\",\"middle_name\":\"Иванович\",\"phone\":\"+7 (777) 777-77-77\",\"city\":\"Москва\",\"street\":\"Тверская\",\"house\":\"10\",\"apartment\":\"15\",\"is_blocked\":false,\"role\":\"user\"}"
+  -d "{\"login\":\"user123\",\"email\":\"user@example.com\",\"password\":\"qwerty123\",\"last_name\":\"Иванов\",\"first_name\":\"Иван\",\"middle_name\":\"Иванович\",\"phone\":\"+7 (777) 777-77-77\",\"city\":\"Москва\",\"street\":\"Тверская\",\"house\":\"10\",\"apartment\":\"15\"}"
 ```
 
 ### Ожидаемо
@@ -88,7 +86,6 @@ curl -i -X POST "http://localhost:8080/v1/users" \
 - **Пароль < 6 символов** → `400` (правило `min=6` для `password`)
 - **Пустые обязательные поля** (`login`, `email`, `first_name` и т.д.) → `400`
 - **Невалидный email** → `400`
-- **Некорректная роль** (не `user|admin|premium`) → `400`
 - **Телефон не по правилу** (после нормализации не 11 цифр/не начинается с `7`) → `400`
 
 ---
@@ -126,7 +123,7 @@ curl -i -X POST "http://localhost:8080/v1/users/email-code/send" \
 
 ## Рекомендуемый порядок smoke-теста
 
-1. Зарегистрировать нового пользователя через `POST /v1/users`.
+1. Зарегистрировать нового пользователя через `POST /v1/auth/register`.
 2. Вызвать `POST /v1/users/email-code/send` для этого email с `purpose=register`.
 3. Выполнить вход этим пользователем через `POST /v1/auth/login`.
 

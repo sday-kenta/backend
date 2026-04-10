@@ -1,0 +1,146 @@
+package push
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/sday-kenta/backend/internal/entity"
+	"github.com/sday-kenta/backend/pkg/pushclient"
+)
+
+func TestBuildIncidentStatusNotificationPublished(t *testing.T) {
+	t.Parallel()
+
+	notification, ok := BuildIncidentStatusNotification(
+		entity.Incident{ID: 7, UserID: 22, Status: entity.IncidentStatusReview},
+		entity.Incident{ID: 7, UserID: 22, Status: entity.IncidentStatusPublished},
+		11,
+	)
+
+	require.True(t, ok)
+	require.Equal(t, entity.NotificationTypeIncidentPublished, notification.Type)
+	require.Equal(t, int64(22), notification.RecipientUserID)
+	require.Equal(t, "/incidents/7", notification.DeepLink)
+}
+
+func TestBuildIncidentStatusNotificationRejectedByAdmin(t *testing.T) {
+	t.Parallel()
+
+	notification, ok := BuildIncidentStatusNotification(
+		entity.Incident{ID: 9, UserID: 33, Status: entity.IncidentStatusReview},
+		entity.Incident{ID: 9, UserID: 33, Status: entity.IncidentStatusDraft},
+		99,
+	)
+
+	require.True(t, ok)
+	require.Equal(t, entity.NotificationTypeIncidentRejected, notification.Type)
+}
+
+func TestBuildIncidentStatusNotificationDoesNotNotifyAuthorDraft(t *testing.T) {
+	t.Parallel()
+
+	_, ok := BuildIncidentStatusNotification(
+		entity.Incident{ID: 9, UserID: 33, Status: entity.IncidentStatusReview},
+		entity.Incident{ID: 9, UserID: 33, Status: entity.IncidentStatusDraft},
+		33,
+	)
+
+	require.False(t, ok)
+}
+
+func TestNotifyIncidentStatusChangedDeletesUnregisteredTokenAndKeepsSuccessfulSend(t *testing.T) {
+	t.Parallel()
+
+	repo := &pushDeviceRepoStub{
+		devices: []entity.PushDevice{
+			{FCMToken: "dead-token"},
+			{FCMToken: "ok-token"},
+		},
+	}
+	sender := &pushSenderStub{
+		errs: map[string]error{
+			"dead-token": pushclient.ErrUnregisteredToken,
+		},
+	}
+	uc := New(repo, sender)
+
+	err := uc.NotifyIncidentStatusChanged(context.Background(), entity.PushNotification{
+		RecipientUserID: 1,
+		Type:            entity.NotificationTypeIncidentPublished,
+		Title:           "title",
+		Body:            "body",
+		IncidentID:      42,
+		Status:          entity.IncidentStatusPublished,
+		DeepLink:        "/incidents/42",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"dead-token"}, repo.deletedTokens)
+	require.Len(t, sender.sent, 2)
+}
+
+type pushDeviceRepoStub struct {
+	devices       []entity.PushDevice
+	deletedTokens []string
+}
+
+func (s *pushDeviceRepoStub) Upsert(_ context.Context, _ *entity.PushDevice) error {
+	return nil
+}
+
+func (s *pushDeviceRepoStub) ListByUserID(_ context.Context, _ int64) ([]entity.PushDevice, error) {
+	return append([]entity.PushDevice(nil), s.devices...), nil
+}
+
+func (s *pushDeviceRepoStub) DeleteByUserAndDeviceID(_ context.Context, _ int64, _ string) error {
+	return nil
+}
+
+func (s *pushDeviceRepoStub) DeleteByToken(_ context.Context, token string) error {
+	s.deletedTokens = append(s.deletedTokens, token)
+	return nil
+}
+
+type pushSenderStub struct {
+	errs map[string]error
+	sent []pushclient.Message
+}
+
+func (s *pushSenderStub) Send(_ context.Context, msg pushclient.Message) error {
+	s.sent = append(s.sent, msg)
+	if err, ok := s.errs[msg.Token]; ok {
+		return err
+	}
+
+	return nil
+}
+
+func TestNotifyIncidentStatusChangedReturnsErrorWhenEverySendFails(t *testing.T) {
+	t.Parallel()
+
+	repo := &pushDeviceRepoStub{
+		devices: []entity.PushDevice{
+			{FCMToken: "broken-token"},
+		},
+	}
+	sender := &pushSenderStub{
+		errs: map[string]error{
+			"broken-token": errors.New("boom"),
+		},
+	}
+	uc := New(repo, sender)
+
+	err := uc.NotifyIncidentStatusChanged(context.Background(), entity.PushNotification{
+		RecipientUserID: 1,
+		Type:            entity.NotificationTypeIncidentPublished,
+		Title:           "title",
+		Body:            "body",
+		IncidentID:      42,
+		Status:          entity.IncidentStatusPublished,
+	})
+
+	require.Error(t, err)
+}

@@ -57,6 +57,7 @@ type IncidentFilter struct {
 	UserID        *int64
 	CategoryID    *int
 	Status        *string
+	Statuses      []string
 	OnlyPublished bool
 }
 

@@ -74,6 +74,59 @@ const docTemplate = `{
                 }
             }
         },
+        "/auth/register": {
+            "post": {
+                "description": "Public registration endpoint. Creates a regular user registration that must be confirmed by email code.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Register",
+                "operationId": "register",
+                "parameters": [
+                    {
+                        "description": "User registration data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.CreateUser"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/entity.User"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/categories": {
             "get": {
                 "description": "Returns all active categories. Category icon URLs are returned in the icon_url field when an icon is uploaded.",
@@ -502,9 +555,59 @@ const docTemplate = `{
                 }
             }
         },
+        "/feedback": {
+            "post": {
+                "description": "Письмо уходит на служебный адрес SMTP (тот же, что для кодов на почту)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "feedback"
+                ],
+                "summary": "Отправить обращение",
+                "operationId": "send-feedback",
+                "parameters": [
+                    {
+                        "description": "Текст и опционально контакты",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.SendFeedback"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/incidents": {
             "get": {
-                "description": "Возвращает общий список опубликованных сообщений. Черновики в эту выборку не попадают.",
+                "description": "Возвращает общий список инцидентов. Для обычного пользователя и анонимного запроса возвращаются только published. Для администратора по умолчанию возвращаются published и review, а query-параметр status можно передавать несколько раз, чтобы выбрать нужные статусы.",
                 "consumes": [
                     "application/json"
                 ],
@@ -514,9 +617,25 @@ const docTemplate = `{
                 "tags": [
                     "incidents"
                 ],
-                "summary": "Получить список всех опубликованных инцидентов",
+                "summary": "Получить список инцидентов",
                 "operationId": "list-incidents",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer access token. Для admin включает расширенный список и фильтры по статусам.",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "multi",
+                        "description": "Фильтр по статусам для admin; параметр можно повторять",
+                        "name": "status",
+                        "in": "query"
+                    },
                     {
                         "type": "integer",
                         "description": "ID категории",
@@ -554,7 +673,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Создает новое сообщение об инциденте для авторизованного пользователя. Если статус не указан или передан как review/published, инцидент сохраняется в статусе review.",
+                "description": "Создает новое сообщение об инциденте для авторизованного пользователя. Если статус не указан, инцидент сохраняется в review. Если обычный пользователь передает published, статус понижается до review. Администратор может сохранить published сразу.",
                 "consumes": [
                     "application/json"
                 ],
@@ -748,7 +867,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Обновляет сообщение об инциденте. Доступно только автору или администратору. Статус published может установить только администратор.",
+                "description": "Обновляет сообщение об инциденте. Доступно только автору или администратору. Если обычный пользователь передает published, статус понижается до review. Администратор может сохранить published сразу, но не может редактировать чужие draft-инциденты.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1037,7 +1156,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Загружает одну или несколько фотографий инцидента. Используй multipart/form-data с повторяемым полем photos. Доступно только автору или администратору.",
+                "description": "Загружает одну или несколько фотографий инцидента. Используй multipart/form-data с повторяемым полем photos. Доступно только автору инцидента. Администратор не может загружать фотографии в чужие инциденты.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -1430,6 +1549,120 @@ const docTemplate = `{
                 }
             }
         },
+        "/push/devices": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Registers or refreshes an FCM device for the authenticated user.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "push"
+                ],
+                "summary": "Register push device",
+                "operationId": "register-push-device",
+                "parameters": [
+                    {
+                        "description": "Push device payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/request.RegisterPushDevice"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/push/devices/{deviceId}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Deletes an FCM device by client-generated device ID for the authenticated user.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "push"
+                ],
+                "summary": "Delete push device",
+                "operationId": "delete-push-device",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client device ID",
+                        "name": "deviceId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/users": {
             "get": {
                 "security": [
@@ -1480,7 +1713,12 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Public registration endpoint. Creates a regular user; role and blocked status are not accepted from the request.",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a user immediately without email confirmation flow. Admin only. Role and blocked status can be set during creation.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1490,8 +1728,8 @@ const docTemplate = `{
                 "tags": [
                     "users"
                 ],
-                "summary": "Create user",
-                "operationId": "create-user",
+                "summary": "Create user by admin",
+                "operationId": "create-user-by-admin",
                 "parameters": [
                     {
                         "description": "User data",
@@ -1499,7 +1737,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/request.CreateUser"
+                            "$ref": "#/definitions/request.CreateUserByAdmin"
                         }
                     }
                 ],
@@ -1512,6 +1750,18 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }
@@ -1619,9 +1869,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/users/login": {
+        "/users/password-reset/reset": {
             "post": {
-                "description": "Legacy login endpoint. Authenticates by login/email/phone + password and returns the user profile without issuing a JWT token. Prefer /auth/login for JWT-based auth.",
+                "description": "Verifies the code from email and sets a new password",
                 "consumes": [
                     "application/json"
                 ],
@@ -1631,25 +1881,22 @@ const docTemplate = `{
                 "tags": [
                     "users"
                 ],
-                "summary": "Login",
-                "operationId": "users-login",
+                "summary": "Reset password with code",
+                "operationId": "reset-password-with-code",
                 "parameters": [
                     {
-                        "description": "Credentials",
+                        "description": "Email, code and new password",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/request.Login"
+                            "$ref": "#/definitions/request.ResetPasswordWithCode"
                         }
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/entity.User"
-                        }
+                    "204": {
+                        "description": "No Content"
                     },
                     "400": {
                         "description": "Bad Request",
@@ -1657,14 +1904,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Error"
                         }
                     },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/response.Error"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/response.Error"
                         }
@@ -2021,6 +2262,9 @@ const docTemplate = `{
                 "email": {
                     "type": "string"
                 },
+                "email_verified": {
+                    "type": "boolean"
+                },
                 "first_name": {
                     "type": "string"
                 },
@@ -2190,6 +2434,80 @@ const docTemplate = `{
                 }
             }
         },
+        "request.CreateUserByAdmin": {
+            "type": "object",
+            "required": [
+                "city",
+                "email",
+                "first_name",
+                "house",
+                "last_name",
+                "login",
+                "password",
+                "phone",
+                "street"
+            ],
+            "properties": {
+                "apartment": {
+                    "type": "string",
+                    "example": "10"
+                },
+                "city": {
+                    "type": "string",
+                    "example": "Москва"
+                },
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                },
+                "first_name": {
+                    "type": "string",
+                    "example": "Иван"
+                },
+                "house": {
+                    "type": "string",
+                    "example": "1"
+                },
+                "is_blocked": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "last_name": {
+                    "type": "string",
+                    "example": "Иванов"
+                },
+                "login": {
+                    "type": "string",
+                    "example": "user123"
+                },
+                "middle_name": {
+                    "type": "string",
+                    "example": "Иванович"
+                },
+                "password": {
+                    "type": "string",
+                    "minLength": 6,
+                    "example": "qwerty123"
+                },
+                "phone": {
+                    "type": "string",
+                    "example": "+79991234567"
+                },
+                "role": {
+                    "type": "string",
+                    "enum": [
+                        "user",
+                        "admin",
+                        "premium"
+                    ],
+                    "example": "user"
+                },
+                "street": {
+                    "type": "string",
+                    "example": "Тверская"
+                }
+            }
+        },
         "request.Login": {
             "type": "object",
             "required": [
@@ -2204,6 +2522,62 @@ const docTemplate = `{
                 "password": {
                     "type": "string",
                     "example": "qwerty123"
+                }
+            }
+        },
+        "request.RegisterPushDevice": {
+            "type": "object",
+            "required": [
+                "device_id",
+                "fcm_token",
+                "platform"
+            ],
+            "properties": {
+                "app_version": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "example": "1.0.0"
+                },
+                "device_id": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "example": "0a2a97ae-9d0a-4ef1-9729-e7d8e31ab001"
+                },
+                "fcm_token": {
+                    "type": "string",
+                    "maxLength": 4096,
+                    "example": "fcm-registration-token"
+                },
+                "platform": {
+                    "type": "string",
+                    "enum": [
+                        "android",
+                        "ios"
+                    ],
+                    "example": "android"
+                }
+            }
+        },
+        "request.ResetPasswordWithCode": {
+            "type": "object",
+            "required": [
+                "code",
+                "email",
+                "new_password"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "123456"
+                },
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                },
+                "new_password": {
+                    "type": "string",
+                    "minLength": 6,
+                    "example": "newsecret1"
                 }
             }
         },
@@ -2225,6 +2599,29 @@ const docTemplate = `{
                         "change_email"
                     ],
                     "example": "register"
+                }
+            }
+        },
+        "request.SendFeedback": {
+            "type": "object",
+            "required": [
+                "message"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                },
+                "message": {
+                    "type": "string",
+                    "maxLength": 8000,
+                    "minLength": 10,
+                    "example": "Текст обращения"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "example": "Иван"
                 }
             }
         },

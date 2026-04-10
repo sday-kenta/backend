@@ -13,6 +13,8 @@ definitions:
         type: string
       email:
         type: string
+      email_verified:
+        type: boolean
       first_name:
         type: string
       house:
@@ -137,6 +139,63 @@ definitions:
     - phone
     - street
     type: object
+  request.CreateUserByAdmin:
+    properties:
+      apartment:
+        example: "10"
+        type: string
+      city:
+        example: Москва
+        type: string
+      email:
+        example: user@example.com
+        type: string
+      first_name:
+        example: Иван
+        type: string
+      house:
+        example: "1"
+        type: string
+      is_blocked:
+        example: false
+        type: boolean
+      last_name:
+        example: Иванов
+        type: string
+      login:
+        example: user123
+        type: string
+      middle_name:
+        example: Иванович
+        type: string
+      password:
+        example: qwerty123
+        minLength: 6
+        type: string
+      phone:
+        example: "+79991234567"
+        type: string
+      role:
+        enum:
+        - user
+        - admin
+        - premium
+        example: user
+        type: string
+      street:
+        example: Тверская
+        type: string
+    required:
+    - city
+    - email
+    - first_name
+    - house
+    - last_name
+    - login
+    - password
+    - phone
+    - street
+    type: object
   request.Login:
     properties:
       identifier:
@@ -148,6 +207,48 @@ definitions:
     required:
     - identifier
     - password
+    type: object
+  request.RegisterPushDevice:
+    properties:
+      app_version:
+        example: 1.0.0
+        maxLength: 64
+        type: string
+      device_id:
+        example: 0a2a97ae-9d0a-4ef1-9729-e7d8e31ab001
+        maxLength: 255
+        type: string
+      fcm_token:
+        example: fcm-registration-token
+        maxLength: 4096
+        type: string
+      platform:
+        enum:
+        - android
+        - ios
+        example: android
+        type: string
+    required:
+    - device_id
+    - fcm_token
+    - platform
+    type: object
+  request.ResetPasswordWithCode:
+    properties:
+      code:
+        example: "123456"
+        type: string
+      email:
+        example: user@example.com
+        type: string
+      new_password:
+        example: newsecret1
+        minLength: 6
+        type: string
+    required:
+    - code
+    - email
+    - new_password
     type: object
   request.SendEmailVerificationCode:
     properties:
@@ -163,6 +264,23 @@ definitions:
     required:
     - email
     - purpose
+    type: object
+  request.SendFeedback:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      message:
+        example: Текст обращения
+        maxLength: 8000
+        minLength: 10
+        type: string
+      name:
+        example: Иван
+        maxLength: 200
+        type: string
+    required:
+    - message
     type: object
   request.SendIncidentDocumentEmail:
     properties:
@@ -483,6 +601,42 @@ paths:
       summary: Login
       tags:
       - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Public registration endpoint. Creates a regular user registration
+        that must be confirmed by email code.
+      operationId: register
+      parameters:
+      - description: User registration data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.CreateUser'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/entity.User'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Register
+      tags:
+      - auth
   /categories:
     get:
       consumes:
@@ -771,14 +925,62 @@ paths:
       summary: Upload category icon
       tags:
       - categories
+  /feedback:
+    post:
+      consumes:
+      - application/json
+      description: Письмо уходит на служебный адрес SMTP (тот же, что для кодов на
+        почту)
+      operationId: send-feedback
+      parameters:
+      - description: Текст и опционально контакты
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.SendFeedback'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Error'
+      summary: Отправить обращение
+      tags:
+      - feedback
   /incidents:
     get:
       consumes:
       - application/json
-      description: Возвращает общий список опубликованных сообщений. Черновики в эту
-        выборку не попадают.
+      description: Возвращает общий список инцидентов. Для обычного пользователя и
+        анонимного запроса возвращаются только published. Для администратора по умолчанию
+        возвращаются published и review, а query-параметр status можно передавать
+        несколько раз, чтобы выбрать нужные статусы.
       operationId: list-incidents
       parameters:
+      - description: Bearer access token. Для admin включает расширенный список и
+          фильтры по статусам.
+        in: header
+        name: Authorization
+        type: string
+      - collectionFormat: multi
+        description: Фильтр по статусам для admin; параметр можно повторять
+        in: query
+        items:
+          type: string
+        name: status
+        type: array
       - description: ID категории
         in: query
         name: category_id
@@ -800,15 +1002,16 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Error'
-      summary: Получить список всех опубликованных инцидентов
+      summary: Получить список инцидентов
       tags:
       - incidents
     post:
       consumes:
       - application/json
       description: Создает новое сообщение об инциденте для авторизованного пользователя.
-        Если статус не указан или передан как review/published, инцидент сохраняется
-        в статусе review.
+        Если статус не указан, инцидент сохраняется в review. Если обычный пользователь
+        передает published, статус понижается до review. Администратор может сохранить
+        published сразу.
       operationId: create-incident
       parameters:
       - description: Данные инцидента
@@ -938,7 +1141,9 @@ paths:
       consumes:
       - application/json
       description: Обновляет сообщение об инциденте. Доступно только автору или администратору.
-        Статус published может установить только администратор.
+        Если обычный пользователь передает published, статус понижается до review.
+        Администратор может сохранить published сразу, но не может редактировать чужие
+        draft-инциденты.
       operationId: update-incident
       parameters:
       - description: ID инцидента
@@ -1129,7 +1334,8 @@ paths:
       consumes:
       - multipart/form-data
       description: Загружает одну или несколько фотографий инцидента. Используй multipart/form-data
-        с повторяемым полем photos. Доступно только автору или администратору.
+        с повторяемым полем photos. Доступно только автору инцидента. Администратор
+        не может загружать фотографии в чужие инциденты.
       operationId: upload-incident-photos
       parameters:
       - description: ID инцидента
@@ -1408,6 +1614,80 @@ paths:
       summary: Получить мои инциденты
       tags:
       - incidents
+  /push/devices:
+    post:
+      consumes:
+      - application/json
+      description: Registers or refreshes an FCM device for the authenticated user.
+      operationId: register-push-device
+      parameters:
+      - description: Push device payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.RegisterPushDevice'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      security:
+      - BearerAuth: []
+      summary: Register push device
+      tags:
+      - push
+  /push/devices/{deviceId}:
+    delete:
+      consumes:
+      - application/json
+      description: Deletes an FCM device by client-generated device ID for the authenticated
+        user.
+      operationId: delete-push-device
+      parameters:
+      - description: Client device ID
+        in: path
+        name: deviceId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Error'
+      security:
+      - BearerAuth: []
+      summary: Delete push device
+      tags:
+      - push
   /users:
     get:
       consumes:
@@ -1443,16 +1723,16 @@ paths:
     post:
       consumes:
       - application/json
-      description: Public registration endpoint. Creates a regular user; role and
-        blocked status are not accepted from the request.
-      operationId: create-user
+      description: Creates a user immediately without email confirmation flow. Admin
+        only. Role and blocked status can be set during creation.
+      operationId: create-user-by-admin
       parameters:
       - description: User data
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/request.CreateUser'
+          $ref: '#/definitions/request.CreateUserByAdmin'
       produces:
       - application/json
       responses:
@@ -1464,6 +1744,14 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/response.Error'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Error'
         "409":
           description: Conflict
           schema:
@@ -1472,7 +1760,9 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Error'
-      summary: Create user
+      security:
+      - BearerAuth: []
+      summary: Create user by admin
       tags:
       - users
   /users/{id}:
@@ -1718,45 +2008,37 @@ paths:
       summary: Verify email verification code
       tags:
       - users
-  /users/login:
+  /users/password-reset/reset:
     post:
       consumes:
       - application/json
-      description: Legacy login endpoint. Authenticates by login/email/phone + password
-        and returns the user profile without issuing a JWT token. Prefer /auth/login
-        for JWT-based auth.
-      operationId: users-login
+      description: Verifies the code from email and sets a new password
+      operationId: reset-password-with-code
       parameters:
-      - description: Credentials
+      - description: Email, code and new password
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/request.Login'
+          $ref: '#/definitions/request.ResetPasswordWithCode'
       produces:
       - application/json
       responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/entity.User'
+        "204":
+          description: No Content
         "400":
           description: Bad Request
           schema:
             $ref: '#/definitions/response.Error'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/response.Error'
-        "403":
-          description: Forbidden
+        "404":
+          description: Not Found
           schema:
             $ref: '#/definitions/response.Error'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Error'
-      summary: Login
+      summary: Reset password with code
       tags:
       - users
   /users/password-reset/send-code:

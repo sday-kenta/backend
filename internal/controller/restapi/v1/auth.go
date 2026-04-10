@@ -8,6 +8,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/sday-kenta/backend/internal/controller/restapi/v1/request"
 	"github.com/sday-kenta/backend/internal/controller/restapi/v1/response"
+	"github.com/sday-kenta/backend/internal/entity"
 	"github.com/sday-kenta/backend/internal/usecase"
 	"github.com/sday-kenta/backend/internal/usererr"
 	"github.com/sday-kenta/backend/pkg/authjwt"
@@ -32,6 +33,7 @@ func NewAuthRoutes(apiV1Group fiber.Router, u usecase.User, l logger.Interface, 
 	authGroup := apiV1Group.Group("/auth")
 	{
 		authGroup.Post("/login", r.login)
+		authGroup.Post("/register", r.register)
 	}
 }
 
@@ -87,4 +89,52 @@ func (r *AuthV1) login(ctx *fiber.Ctx) error {
 		ExpiresAt:   expiresAt,
 		User:        user,
 	})
+}
+
+// @Summary     Register
+// @Description Public registration endpoint. Creates a regular user registration that must be confirmed by email code.
+// @ID          register
+// @Tags        auth
+// @Accept      json
+// @Produce     json
+// @Param       request body request.CreateUser true "User registration data"
+// @Success     201 {object} entity.User
+// @Failure     400 {object} response.Error
+// @Failure     409 {object} response.Error
+// @Failure     500 {object} response.Error
+// @Router      /auth/register [post]
+func (r *AuthV1) register(ctx *fiber.Ctx) error {
+	var body request.CreateUser
+	if err := ctx.BodyParser(&body); err != nil {
+		r.l.Error(err, "restapi - v1 - register")
+		return errorResponse(ctx, http.StatusBadRequest, "invalid request body")
+	}
+
+	if err := r.v.Struct(body); err != nil {
+		r.l.Error(err, "restapi - v1 - register")
+		return errorResponse(ctx, http.StatusBadRequest, formatValidationError(err))
+	}
+
+	user, err := r.u.Register(
+		ctx.UserContext(),
+		entity.User{
+			Login:      body.Login,
+			Email:      body.Email,
+			LastName:   body.LastName,
+			FirstName:  body.FirstName,
+			MiddleName: body.MiddleName,
+			Phone:      body.Phone,
+			City:       body.City,
+			Street:     body.Street,
+			House:      body.House,
+			Apartment:  body.Apartment,
+		},
+		body.Password,
+	)
+	if err != nil {
+		r.l.Error(err, "restapi - v1 - register")
+		return userErrorResponse(ctx, err)
+	}
+
+	return ctx.Status(http.StatusCreated).JSON(user)
 }

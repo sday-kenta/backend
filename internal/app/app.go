@@ -14,10 +14,12 @@ import (
 	"github.com/sday-kenta/backend/internal/usecase/category"
 	geoUseCase "github.com/sday-kenta/backend/internal/usecase/geo"
 	incidentUseCase "github.com/sday-kenta/backend/internal/usecase/incident"
+	pushUseCase "github.com/sday-kenta/backend/internal/usecase/push"
 	userUseCase "github.com/sday-kenta/backend/internal/usecase/user"
 	"github.com/sday-kenta/backend/pkg/httpserver"
 	"github.com/sday-kenta/backend/pkg/logger"
 	"github.com/sday-kenta/backend/pkg/postgres"
+	"github.com/sday-kenta/backend/pkg/pushclient"
 )
 
 func Run(cfg *config.Config) { //nolint: gocyclo,cyclop,funlen,gocritic,nolintlint
@@ -54,10 +56,21 @@ func Run(cfg *config.Config) { //nolint: gocyclo,cyclop,funlen,gocritic,nolintli
 	if cfg.Admin.Enabled {
 		l.Info("app - Run - bootstrap admin ensured for %s", cfg.Admin.Email)
 	}
+	pushSender := pushclient.NewNoopSender()
+	if cfg.FCM.Enabled {
+		pushSender, err = pushclient.NewFCMSender(context.Background(), pushclient.Config{
+			CredentialsFile: cfg.FCM.CredentialsFile,
+			Timeout:         cfg.FCM.Timeout,
+		})
+		if err != nil {
+			l.Fatal(fmt.Errorf("app - Run - pushclient.NewFCMSender: %w", err))
+		}
+	}
+	pushUC := pushUseCase.New(persistent.NewPushDeviceRepo(pg), pushSender)
 	incidentUC := incidentUseCase.New(persistent.NewIncidentRepo(pg), userRepo, persistent.NewCategoryRepo(pg), geoRepo)
 
 	httpServer := httpserver.New(l, httpserver.Port(cfg.HTTP.Port), httpserver.Prefork(cfg.HTTP.UsePreforkMode))
-	restapi.NewRouter(httpServer.App, cfg, categoryUC, geoUC, userUC, incidentUC, l)
+	restapi.NewRouter(httpServer.App, cfg, categoryUC, geoUC, userUC, incidentUC, pushUC, l)
 
 	httpServer.Start()
 
