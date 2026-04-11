@@ -138,7 +138,12 @@ func isSensitiveHeader(key string) bool {
 
 func isSensitiveField(key string) bool {
 	switch strings.ToLower(strings.TrimSpace(key)) {
-	case "password", "password_hash", "old_password", "new_password", "confirm_password", "code", "token", "access_token", "refresh_token", "authorization":
+	case "password", "password_hash", "old_password", "new_password", "confirm_password",
+		"code", "token", "access_token", "refresh_token", "authorization",
+		"email", "phone", "telephone", "mobile", "login", "username", "identifier",
+		"first_name", "last_name", "middle_name", "name", "full_name",
+		"city", "street", "house", "apartment", "building", "address_text", "postcode", "postal_code", "zip",
+		"fcm_token":
 		return true
 	default:
 		return false
