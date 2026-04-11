@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"log/slog"
 	"mime"
 	"mime/multipart"
 	"net/smtp"
@@ -16,12 +17,41 @@ import (
 	"github.com/sday-kenta/backend/internal/entity"
 )
 
+// MaskEmail hides the local part for logs (e.g. j***@mail.ru).
+func MaskEmail(email string) string {
+	email = strings.TrimSpace(email)
+	at := strings.LastIndex(email, "@")
+	if at <= 1 || at == len(email)-1 {
+		return "***"
+	}
+	local := email[:at]
+	domain := email[at:]
+	if len(local) <= 1 {
+		return "*" + domain
+	}
+	return string(local[0]) + "***" + domain
+}
+
 func SendMail(subject string, body string, to []string) error {
 	smtpMailName, smtpMailCode, err := smtpCredentials()
 	if err != nil {
+		slog.Warn("mailsender.SendMail: smtp credentials", "err", err)
 		return err
 	}
 	smtpHost, smtpAddr := smtpServerConfig()
+
+	masked := make([]string, len(to))
+	for i, addr := range to {
+		masked[i] = MaskEmail(addr)
+	}
+	slog.Info("mailsender.SendMail: sending",
+		"smtp_addr", smtpAddr,
+		"smtp_host", smtpHost,
+		"from_configured", smtpMailName != "",
+		"to_count", len(to),
+		"to_masked", strings.Join(masked, ","),
+		"subject", subject,
+	)
 
 	auth := smtp.PlainAuth(
 		"",
@@ -39,9 +69,14 @@ func SendMail(subject string, body string, to []string) error {
 		to,
 		msg,
 	); err != nil {
+		slog.Error("mailsender.SendMail: smtp send failed",
+			"smtp_addr", smtpAddr,
+			"err", err,
+		)
 		return fmt.Errorf("send smtp mail: %w", err)
 	}
 
+	slog.Info("mailsender.SendMail: sent ok", "smtp_addr", smtpAddr, "to_count", len(to))
 	return nil
 }
 
@@ -49,9 +84,25 @@ func SendMail(subject string, body string, to []string) error {
 func SendMailWithAttachment(subject, htmlBody string, to []string, attachmentName string, attachment []byte, attachmentContentType string, inlineAttachments []entity.InlineAttachment) error {
 	smtpMailName, smtpMailCode, err := smtpCredentials()
 	if err != nil {
+		slog.Warn("mailsender.SendMailWithAttachment: smtp credentials", "err", err)
 		return err
 	}
 	smtpHost, smtpAddr := smtpServerConfig()
+
+	masked := make([]string, len(to))
+	for i, addr := range to {
+		masked[i] = MaskEmail(addr)
+	}
+	slog.Info("mailsender.SendMailWithAttachment: sending",
+		"smtp_addr", smtpAddr,
+		"smtp_host", smtpHost,
+		"from_configured", smtpMailName != "",
+		"to_count", len(to),
+		"to_masked", strings.Join(masked, ","),
+		"subject", subject,
+		"attachment_bytes", len(attachment),
+		"inline_parts", len(inlineAttachments),
+	)
 
 	auth := smtp.PlainAuth("", smtpMailName, smtpMailCode, smtpHost)
 
@@ -154,7 +205,15 @@ func SendMailWithAttachment(subject, htmlBody string, to []string, attachmentNam
 		return closeErr
 	}
 
-	return smtp.SendMail(smtpAddr, auth, smtpMailName, to, message.Bytes())
+	if err := smtp.SendMail(smtpAddr, auth, smtpMailName, to, message.Bytes()); err != nil {
+		slog.Error("mailsender.SendMailWithAttachment: smtp send failed",
+			"smtp_addr", smtpAddr,
+			"err", err,
+		)
+		return err
+	}
+	slog.Info("mailsender.SendMailWithAttachment: sent ok", "smtp_addr", smtpAddr, "to_count", len(to))
+	return nil
 }
 
 func writeBase64Body(dst io.Writer, content []byte) error {
