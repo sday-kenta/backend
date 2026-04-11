@@ -94,13 +94,15 @@ func (uc *UseCase) NotifyIncidentStatusChanged(ctx context.Context, notification
 }
 
 func BuildIncidentStatusNotification(before, after entity.Incident, actorUserID int64) (entity.PushNotification, bool) {
+	incidentLabel := incidentNotificationLabel(after)
+
 	switch {
 	case before.Status != entity.IncidentStatusPublished && after.Status == entity.IncidentStatusPublished:
 		return entity.PushNotification{
 			RecipientUserID: after.UserID,
 			Type:            entity.NotificationTypeIncidentPublished,
 			Title:           "Обращение опубликовано",
-			Body:            fmt.Sprintf("Ваше обращение #%d опубликовано.", after.ID),
+			Body:            fmt.Sprintf("Ваше обращение \"%s\" опубликовано.", incidentLabel),
 			IncidentID:      after.ID,
 			Status:          after.Status,
 			DeepLink:        fmt.Sprintf("/incidents/%d", after.ID),
@@ -110,7 +112,7 @@ func BuildIncidentStatusNotification(before, after entity.Incident, actorUserID 
 			RecipientUserID: after.UserID,
 			Type:            entity.NotificationTypeIncidentRejected,
 			Title:           "Обращение возвращено в черновик",
-			Body:            fmt.Sprintf("Ваше обращение #%d возвращено администратором на доработку.", after.ID),
+			Body:            fmt.Sprintf("Ваше обращение \"%s\" возвращено администратором на доработку.", incidentLabel),
 			IncidentID:      after.ID,
 			Status:          after.Status,
 			DeepLink:        fmt.Sprintf("/incidents/%d", after.ID),
@@ -131,6 +133,15 @@ func notificationData(notification entity.PushNotification) map[string]string {
 	}
 
 	return data
+}
+
+func incidentNotificationLabel(incident entity.Incident) string {
+	title := strings.TrimSpace(incident.Title)
+	if title != "" {
+		return title
+	}
+
+	return fmt.Sprintf("#%d", incident.ID)
 }
 
 func normalizePlatform(platform string) string {

@@ -16,13 +16,14 @@ func TestBuildIncidentStatusNotificationPublished(t *testing.T) {
 
 	notification, ok := BuildIncidentStatusNotification(
 		entity.Incident{ID: 7, UserID: 22, Status: entity.IncidentStatusReview},
-		entity.Incident{ID: 7, UserID: 22, Status: entity.IncidentStatusPublished},
+		entity.Incident{ID: 7, UserID: 22, Title: "Неправильная парковка во дворе", Status: entity.IncidentStatusPublished},
 		11,
 	)
 
 	require.True(t, ok)
 	require.Equal(t, entity.NotificationTypeIncidentPublished, notification.Type)
 	require.Equal(t, int64(22), notification.RecipientUserID)
+	require.Equal(t, "Ваше обращение \"Неправильная парковка во дворе\" опубликовано.", notification.Body)
 	require.Equal(t, "/incidents/7", notification.DeepLink)
 }
 
@@ -31,12 +32,26 @@ func TestBuildIncidentStatusNotificationRejectedByAdmin(t *testing.T) {
 
 	notification, ok := BuildIncidentStatusNotification(
 		entity.Incident{ID: 9, UserID: 33, Status: entity.IncidentStatusReview},
-		entity.Incident{ID: 9, UserID: 33, Status: entity.IncidentStatusDraft},
+		entity.Incident{ID: 9, UserID: 33, Title: "Яма на дороге", Status: entity.IncidentStatusDraft},
 		99,
 	)
 
 	require.True(t, ok)
 	require.Equal(t, entity.NotificationTypeIncidentRejected, notification.Type)
+	require.Equal(t, "Ваше обращение \"Яма на дороге\" возвращено администратором на доработку.", notification.Body)
+}
+
+func TestBuildIncidentStatusNotificationFallsBackToIncidentIDWhenTitleEmpty(t *testing.T) {
+	t.Parallel()
+
+	notification, ok := BuildIncidentStatusNotification(
+		entity.Incident{ID: 11, UserID: 44, Status: entity.IncidentStatusReview},
+		entity.Incident{ID: 11, UserID: 44, Title: "   ", Status: entity.IncidentStatusPublished},
+		2,
+	)
+
+	require.True(t, ok)
+	require.Equal(t, "Ваше обращение \"#11\" опубликовано.", notification.Body)
 }
 
 func TestBuildIncidentStatusNotificationDoesNotNotifyAuthorDraft(t *testing.T) {
