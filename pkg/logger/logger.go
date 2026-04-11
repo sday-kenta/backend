@@ -195,7 +195,12 @@ func (l *Logger) log(level zerolog.Level, message string, args ...interface{}) {
 func (l *Logger) msg(level zerolog.Level, message interface{}, args ...interface{}) {
 	switch msg := message.(type) {
 	case error:
-		l.log(level, msg.Error(), args...)
+		// err.Error() must not be passed to Msgf: it can contain "%" and extra args are handler context, not printf operands.
+		e := l.logger.WithLevel(level).Err(msg)
+		if len(args) > 0 {
+			e = e.Str("context", fmt.Sprint(args...))
+		}
+		e.Msg("error")
 	case string:
 		l.log(level, msg, args...)
 	default:
