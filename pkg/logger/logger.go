@@ -200,7 +200,7 @@ func (l *Logger) msg(level zerolog.Level, message interface{}, args ...interface
 		if len(args) > 0 {
 			e = e.Str("context", fmt.Sprint(args...))
 		}
-		e.Msg("error")
+		e.Msg("request failed")
 	case string:
 		l.log(level, msg, args...)
 	default:

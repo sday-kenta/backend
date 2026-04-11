@@ -43,7 +43,40 @@ func validateSMTPLine(line string) error {
 	return nil
 }
 
+func smtpImplicitTLS(smtpAddr string) bool {
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("SMTP_IMPLICIT_TLS")), "true") {
+		return true
+	}
+	_, port, err := net.SplitHostPort(smtpAddr)
+	if err != nil {
+		return false
+	}
+	return port == "465"
+}
+
+func dialSMTPTransport(smtpAddr, smtpHost string, connectTO time.Duration) (net.Conn, bool, error) {
+	dialer := net.Dialer{Timeout: connectTO}
+	if smtpImplicitTLS(smtpAddr) {
+		conn, err := tls.DialWithDialer(&dialer, "tcp", smtpAddr, &tls.Config{ServerName: smtpHost})
+		return conn, true, err
+	}
+	conn, err := dialer.Dial("tcp", smtpAddr)
+	return conn, false, err
+}
+
+func formatDialErr(smtpAddr string, err error) error {
+	if err == nil {
+		return nil
+	}
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		return fmt.Errorf("smtp dial %s: %w (timeout: allow outbound TCP from pod/VPC to this host:port, or use an HTTPS mail API relay)", smtpAddr, err)
+	}
+	return fmt.Errorf("smtp dial %s: %w", smtpAddr, err)
+}
+
 // sendMailSMTP mirrors net/smtp.SendMail but uses dial + session deadlines (stdlib Dial has no timeout).
+// Port 465 (or SMTP_IMPLICIT_TLS=true) uses implicit TLS (SMTPS); other ports use plain TCP then STARTTLS when offered.
 func sendMailSMTP(smtpAddr, smtpHost string, auth smtp.Auth, from string, to []string, msg []byte) error {
 	if err := validateSMTPLine(from); err != nil {
 		return err
@@ -58,10 +91,9 @@ func sendMailSMTP(smtpAddr, smtpHost string, auth smtp.Auth, from string, to []s
 	totalTO := smtpTotalTimeout()
 	t0 := time.Now()
 
-	dialer := net.Dialer{Timeout: connectTO}
-	conn, err := dialer.Dial("tcp", smtpAddr)
+	conn, usedImplicitTLS, err := dialSMTPTransport(smtpAddr, smtpHost, connectTO)
 	if err != nil {
-		return fmt.Errorf("smtp dial %s: %w", smtpAddr, err)
+		return formatDialErr(smtpAddr, err)
 	}
 	defer conn.Close()
 
@@ -76,14 +108,20 @@ func sendMailSMTP(smtpAddr, smtpHost string, auth smtp.Auth, from string, to []s
 	}
 	defer func() { _ = client.Close() }()
 
-	slogSMTPPhase("smtp.tcp_ok", smtpAddr, time.Since(t0))
+	if usedImplicitTLS {
+		slogSMTPPhase("smtp.smtps_ok", smtpAddr, time.Since(t0))
+	} else {
+		slogSMTPPhase("smtp.tcp_ok", smtpAddr, time.Since(t0))
+	}
 
-	if ok, _ := client.Extension("STARTTLS"); ok {
-		config := &tls.Config{ServerName: smtpHost}
-		if err = client.StartTLS(config); err != nil {
-			return fmt.Errorf("smtp starttls: %w", err)
+	if !usedImplicitTLS {
+		if ok, _ := client.Extension("STARTTLS"); ok {
+			config := &tls.Config{ServerName: smtpHost}
+			if err = client.StartTLS(config); err != nil {
+				return fmt.Errorf("smtp starttls: %w", err)
+			}
+			slogSMTPPhase("smtp.starttls_ok", smtpAddr, time.Since(t0))
 		}
-		slogSMTPPhase("smtp.starttls_ok", smtpAddr, time.Since(t0))
 	}
 
 	if auth != nil {
