@@ -285,22 +285,31 @@ func (uc *UseCase) SendEmailVerificationCode(ctx context.Context, email, purpose
 	// 10 minutes TTL
 	const ttl = 10 * time.Minute
 	code := mailsender.RandomRumber().String()
+	expiresAt := time.Now().Add(ttl).Unix()
 
 	slog.Info("UserUseCase - SendEmailVerificationCode - persist code",
-		"purpose", purpose,
-		"email", mailsender.MaskEmail(email),
+		slog.String("component", "user_usecase"),
+		slog.String("event", "email_verification.persist_code"),
+		slog.String("purpose", purpose),
+		slog.String("email_masked", mailsender.MaskEmail(email)),
+		slog.String("email_domain", mailsender.EmailDomain(email)),
+		slog.Int("ttl_seconds", int(ttl.Seconds())),
+		slog.Int64("expires_at_unix", expiresAt),
 	)
 	if err := uc.repo.CreateEmailVerificationCode(
 		ctx,
 		email,
 		purpose,
 		code,
-		time.Now().Add(ttl).Unix(),
+		expiresAt,
 	); err != nil {
 		slog.Error("UserUseCase - SendEmailVerificationCode - CreateEmailVerificationCode failed",
-			"err", err,
-			"purpose", purpose,
-			"email", mailsender.MaskEmail(email),
+			slog.String("component", "user_usecase"),
+			slog.String("event", "email_verification.persist_failed"),
+			slog.Any("err", err),
+			slog.String("purpose", purpose),
+			slog.String("email_masked", mailsender.MaskEmail(email)),
+			slog.String("email_domain", mailsender.EmailDomain(email)),
 		)
 		return err
 	}
@@ -308,8 +317,13 @@ func (uc *UseCase) SendEmailVerificationCode(ctx context.Context, email, purpose
 	subject := "Email verification code"
 	body := "Your code is " + code
 	slog.Info("UserUseCase - SendEmailVerificationCode - calling SMTP",
-		"purpose", purpose,
-		"email", mailsender.MaskEmail(email),
+		slog.String("component", "user_usecase"),
+		slog.String("event", "email_verification.smtp_call"),
+		slog.String("purpose", purpose),
+		slog.String("email_masked", mailsender.MaskEmail(email)),
+		slog.String("email_domain", mailsender.EmailDomain(email)),
+		slog.String("subject", subject),
+		slog.Int("body_bytes", len(body)),
 	)
 	if err := mailsender.SendMail(subject, body, []string{email}); err != nil {
 		return fmt.Errorf("UserUseCase - SendEmailVerificationCode - SendMail: %w", err)
@@ -402,19 +416,29 @@ func (uc *UseCase) SendPasswordResetCode(ctx context.Context, email string) erro
 
 	const ttl = 10 * time.Minute
 	code := mailsender.RandomRumber().String()
+	expiresAt := time.Now().Add(ttl).Unix()
 	slog.Info("UserUseCase - SendPasswordResetCode - persist code",
-		"email", mailsender.MaskEmail(u.Email),
+		slog.String("component", "user_usecase"),
+		slog.String("event", "password_reset.persist_code"),
+		slog.String("purpose", purposePasswordReset),
+		slog.String("email_masked", mailsender.MaskEmail(u.Email)),
+		slog.String("email_domain", mailsender.EmailDomain(u.Email)),
+		slog.Int("ttl_seconds", int(ttl.Seconds())),
+		slog.Int64("expires_at_unix", expiresAt),
 	)
 	if err := uc.repo.CreateEmailVerificationCode(
 		ctx,
 		u.Email,
 		purposePasswordReset,
 		code,
-		time.Now().Add(ttl).Unix(),
+		expiresAt,
 	); err != nil {
 		slog.Error("UserUseCase - SendPasswordResetCode - CreateEmailVerificationCode failed",
-			"err", err,
-			"email", mailsender.MaskEmail(u.Email),
+			slog.String("component", "user_usecase"),
+			slog.String("event", "password_reset.persist_failed"),
+			slog.Any("err", err),
+			slog.String("email_masked", mailsender.MaskEmail(u.Email)),
+			slog.String("email_domain", mailsender.EmailDomain(u.Email)),
 		)
 		return err
 	}
@@ -422,7 +446,13 @@ func (uc *UseCase) SendPasswordResetCode(ctx context.Context, email string) erro
 	subject := "Password Recovery 'SdayKenta'"
 	body := "Your code is " + code
 	slog.Info("UserUseCase - SendPasswordResetCode - calling SMTP",
-		"email", mailsender.MaskEmail(u.Email),
+		slog.String("component", "user_usecase"),
+		slog.String("event", "password_reset.smtp_call"),
+		slog.String("purpose", purposePasswordReset),
+		slog.String("email_masked", mailsender.MaskEmail(u.Email)),
+		slog.String("email_domain", mailsender.EmailDomain(u.Email)),
+		slog.String("subject", subject),
+		slog.Int("body_bytes", len(body)),
 	)
 	if err := mailsender.SendMail(subject, body, []string{u.Email}); err != nil {
 		return fmt.Errorf("UserUseCase - SendPasswordResetCode - SendMail: %w", err)
