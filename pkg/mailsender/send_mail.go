@@ -69,13 +69,17 @@ func SendMail(subject string, body string, to []string) error {
 		slog.String("event", "smtp.send_start"),
 		slog.String("smtp_addr", smtpAddr),
 		slog.String("smtp_host", smtpHost),
-		slog.Bool("from_configured", smtpMailName != ""),
-		slog.String("from_masked", MaskEmail(smtpMailName)),
 		slog.Int("to_count", len(to)),
+		slog.Int("msg_bytes", len(msg)),
+	)
+	slog.Info("mailsender.SendMail: sending_detail",
+		slog.String("component", "mailsender"),
+		slog.String("event", "smtp.send_detail"),
+		slog.Bool("from_ok", smtpMailName != ""),
+		slog.String("from_masked", MaskEmail(smtpMailName)),
 		slog.String("to_masked", strings.Join(masked, ",")),
-		slog.Any("to_domains", domains),
-		slog.String("subject", subject),
-		slog.Int("message_bytes", len(msg)),
+		slog.String("to_domains", strings.Join(domains, ",")),
+		slog.Int("subj_len", len(subject)),
 	)
 
 	auth := smtp.PlainAuth(
@@ -86,8 +90,9 @@ func SendMail(subject string, body string, to []string) error {
 	)
 
 	sendStarted := time.Now()
-	if err = smtp.SendMail(
+	if err = sendMailSMTP(
 		smtpAddr,
+		smtpHost,
 		auth,
 		smtpMailName,
 		to,
@@ -134,21 +139,6 @@ func SendMailWithAttachment(subject, htmlBody string, to []string, attachmentNam
 			domains = append(domains, d)
 		}
 	}
-	slog.Info("mailsender.SendMailWithAttachment: sending",
-		slog.String("component", "mailsender"),
-		slog.String("event", "smtp.send_attachment_start"),
-		slog.String("smtp_addr", smtpAddr),
-		slog.String("smtp_host", smtpHost),
-		slog.Bool("from_configured", smtpMailName != ""),
-		slog.String("from_masked", MaskEmail(smtpMailName)),
-		slog.Int("to_count", len(to)),
-		slog.String("to_masked", strings.Join(masked, ",")),
-		slog.Any("to_domains", domains),
-		slog.String("subject", subject),
-		slog.Int("attachment_bytes", len(attachment)),
-		slog.Int("inline_parts", len(inlineAttachments)),
-	)
-
 	auth := smtp.PlainAuth("", smtpMailName, smtpMailCode, smtpHost)
 
 	var message bytes.Buffer
@@ -250,8 +240,29 @@ func SendMailWithAttachment(subject, htmlBody string, to []string, attachmentNam
 		return closeErr
 	}
 
+	payload := message.Bytes()
+	slog.Info("mailsender.SendMailWithAttachment: sending",
+		slog.String("component", "mailsender"),
+		slog.String("event", "smtp.send_attachment_start"),
+		slog.String("smtp_addr", smtpAddr),
+		slog.String("smtp_host", smtpHost),
+		slog.Int("to_count", len(to)),
+		slog.Int("msg_bytes", len(payload)),
+	)
+	slog.Info("mailsender.SendMailWithAttachment: sending_detail",
+		slog.String("component", "mailsender"),
+		slog.String("event", "smtp.send_attachment_detail"),
+		slog.Bool("from_ok", smtpMailName != ""),
+		slog.String("from_masked", MaskEmail(smtpMailName)),
+		slog.String("to_masked", strings.Join(masked, ",")),
+		slog.String("to_domains", strings.Join(domains, ",")),
+		slog.Int("subj_len", len(subject)),
+		slog.Int("attachment_bytes", len(attachment)),
+		slog.Int("inline_parts", len(inlineAttachments)),
+	)
+
 	sendStarted := time.Now()
-	if err := smtp.SendMail(smtpAddr, auth, smtpMailName, to, message.Bytes()); err != nil {
+	if err := sendMailSMTP(smtpAddr, smtpHost, auth, smtpMailName, to, payload); err != nil {
 		slog.Error("mailsender.SendMailWithAttachment: smtp send failed",
 			slog.String("component", "mailsender"),
 			slog.String("event", "smtp.send_attachment_failed"),
