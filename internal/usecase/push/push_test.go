@@ -54,6 +54,33 @@ func TestBuildIncidentStatusNotificationFallsBackToIncidentIDWhenTitleEmpty(t *t
 	require.Equal(t, "Ваше обращение \"#11\" опубликовано.", notification.Body)
 }
 
+func TestBuildIncidentDeletedNotificationByAdmin(t *testing.T) {
+	t.Parallel()
+
+	notification, ok := BuildIncidentDeletedNotification(
+		entity.Incident{ID: 15, UserID: 77, Title: "Сломанная скамейка", Status: entity.IncidentStatusReview},
+		5,
+	)
+
+	require.True(t, ok)
+	require.Equal(t, entity.NotificationTypeIncidentDeleted, notification.Type)
+	require.Equal(t, int64(77), notification.RecipientUserID)
+	require.Equal(t, "Ваше обращение \"Сломанная скамейка\" удалено администратором.", notification.Body)
+	require.Equal(t, entity.IncidentStatusReview, notification.Status)
+	require.Empty(t, notification.DeepLink)
+}
+
+func TestBuildIncidentDeletedNotificationDoesNotNotifyAuthor(t *testing.T) {
+	t.Parallel()
+
+	_, ok := BuildIncidentDeletedNotification(
+		entity.Incident{ID: 15, UserID: 77, Title: "Сломанная скамейка", Status: entity.IncidentStatusReview},
+		77,
+	)
+
+	require.False(t, ok)
+}
+
 func TestBuildIncidentStatusNotificationDoesNotNotifyAuthorDraft(t *testing.T) {
 	t.Parallel()
 

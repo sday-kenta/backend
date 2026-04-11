@@ -399,6 +399,11 @@ func (r *IncidentsV1) deleteIncident(ctx *fiber.Ctx) error {
 	if err != nil {
 		return errorResponse(ctx, http.StatusUnauthorized, err.Error())
 	}
+	incident, err := r.i.GetByID(ctx.UserContext(), requester.UserID, requester.IsAdmin, id)
+	if err != nil {
+		r.l.Error(err, "restapi - v1 - deleteIncident - GetByID")
+		return incidentErrorResponse(ctx, err)
+	}
 
 	photos, err := r.i.Delete(ctx.UserContext(), requester.UserID, requester.IsAdmin, id)
 	if err != nil {
@@ -417,6 +422,7 @@ func (r *IncidentsV1) deleteIncident(ctx *fiber.Ctx) error {
 			}
 		}
 	}
+	r.notifyIncidentDeleted(ctx, incident, requester.UserID, "deleteIncident")
 
 	return ctx.SendStatus(http.StatusNoContent)
 }
@@ -716,5 +722,13 @@ func toIncidentPhotoResponse(photo entity.IncidentPhoto) response.IncidentPhoto 
 		SizeBytes:   photo.SizeBytes,
 		SortOrder:   photo.SortOrder,
 		CreatedAt:   photo.CreatedAt,
+	}
+}
+
+func (r *IncidentsV1) notifyIncidentDeleted(ctx *fiber.Ctx, incident entity.Incident, actorUserID int64, action string) {
+	if notification, ok := pushuc.BuildIncidentDeletedNotification(incident, actorUserID); ok {
+		if notifyErr := r.p.NotifyIncidentStatusChanged(ctx.UserContext(), notification); notifyErr != nil {
+			r.l.Error(fmt.Errorf("restapi - v1 - %s - NotifyIncidentDeleted: %w", action, notifyErr))
+		}
 	}
 }

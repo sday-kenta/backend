@@ -9,6 +9,7 @@ const (
 
 	NotificationTypeIncidentPublished = "incident_published"
 	NotificationTypeIncidentRejected  = "incident_rejected"
+	NotificationTypeIncidentDeleted   = "incident_deleted"
 )
 
 type PushDevice struct {

@@ -122,6 +122,23 @@ func BuildIncidentStatusNotification(before, after entity.Incident, actorUserID 
 	}
 }
 
+func BuildIncidentDeletedNotification(incident entity.Incident, actorUserID int64) (entity.PushNotification, bool) {
+	if actorUserID == 0 || actorUserID == incident.UserID {
+		return entity.PushNotification{}, false
+	}
+
+	incidentLabel := incidentNotificationLabel(incident)
+
+	return entity.PushNotification{
+		RecipientUserID: incident.UserID,
+		Type:            entity.NotificationTypeIncidentDeleted,
+		Title:           "Обращение удалено",
+		Body:            fmt.Sprintf("Ваше обращение \"%s\" удалено администратором.", incidentLabel),
+		IncidentID:      incident.ID,
+		Status:          incident.Status,
+	}, true
+}
+
 func notificationData(notification entity.PushNotification) map[string]string {
 	data := map[string]string{
 		"type":        notification.Type,
