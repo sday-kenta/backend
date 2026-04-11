@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"strings"
 	"sync"
@@ -50,11 +51,36 @@ func New(level string, pretty bool) *Logger {
 
 	zerolog.SetGlobalLevel(l)
 
+	initSlogJSON(level)
+
 	skipFrameCount := 3
 	logger := zerolog.New(buildWriter(pretty)).With().Timestamp().CallerWithSkipFrameCount(zerolog.CallerSkipFrameCount + skipFrameCount).Logger()
 
 	return &Logger{
 		logger: &logger,
+	}
+}
+
+// initSlogJSON aligns stdlib slog with app log level and JSON lines on stdout (same sink as zerolog when not pretty).
+func initSlogJSON(level string) {
+	h := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slogLevel(level),
+	})
+	slog.SetDefault(slog.New(h))
+}
+
+func slogLevel(s string) slog.Level {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "error":
+		return slog.LevelError
+	case "warn", "warning":
+		return slog.LevelWarn
+	case "info":
+		return slog.LevelInfo
+	case "debug":
+		return slog.LevelDebug
+	default:
+		return slog.LevelInfo
 	}
 }
 
