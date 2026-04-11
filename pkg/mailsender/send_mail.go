@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/sday-kenta/backend/internal/entity"
 )
@@ -32,25 +33,49 @@ func MaskEmail(email string) string {
 	return string(local[0]) + "***" + domain
 }
 
+// EmailDomain returns the domain part of an address in lower case, or empty if missing.
+func EmailDomain(email string) string {
+	email = strings.TrimSpace(email)
+	at := strings.LastIndex(email, "@")
+	if at < 0 || at == len(email)-1 {
+		return ""
+	}
+	return strings.ToLower(email[at+1:])
+}
+
 func SendMail(subject string, body string, to []string) error {
 	smtpMailName, smtpMailCode, err := smtpCredentials()
 	if err != nil {
-		slog.Warn("mailsender.SendMail: smtp credentials", "err", err)
+		slog.Warn("mailsender.SendMail: smtp credentials",
+			slog.String("component", "mailsender"),
+			slog.String("event", "smtp.credentials_missing"),
+			slog.Any("err", err),
+		)
 		return err
 	}
 	smtpHost, smtpAddr := smtpServerConfig()
 
 	masked := make([]string, len(to))
+	domains := make([]string, 0, len(to))
 	for i, addr := range to {
 		masked[i] = MaskEmail(addr)
+		if d := EmailDomain(addr); d != "" {
+			domains = append(domains, d)
+		}
 	}
+	msg := buildPlainTextMessage(subject, body, smtpMailName, to)
 	slog.Info("mailsender.SendMail: sending",
-		"smtp_addr", smtpAddr,
-		"smtp_host", smtpHost,
-		"from_configured", smtpMailName != "",
-		"to_count", len(to),
-		"to_masked", strings.Join(masked, ","),
-		"subject", subject,
+		slog.String("component", "mailsender"),
+		slog.String("event", "smtp.send_start"),
+		slog.String("smtp_addr", smtpAddr),
+		slog.String("smtp_host", smtpHost),
+		slog.Bool("from_configured", smtpMailName != ""),
+		slog.String("from_masked", MaskEmail(smtpMailName)),
+		slog.Int("to_count", len(to)),
+		slog.String("to_masked", strings.Join(masked, ",")),
+		slog.Any("to_domains", domains),
+		slog.String("subject", subject),
+		slog.Int("message_bytes", len(msg)),
 	)
 
 	auth := smtp.PlainAuth(
@@ -60,8 +85,7 @@ func SendMail(subject string, body string, to []string) error {
 		smtpHost,
 	)
 
-	msg := buildPlainTextMessage(subject, body, smtpMailName, to)
-
+	sendStarted := time.Now()
 	if err = smtp.SendMail(
 		smtpAddr,
 		auth,
@@ -70,13 +94,22 @@ func SendMail(subject string, body string, to []string) error {
 		msg,
 	); err != nil {
 		slog.Error("mailsender.SendMail: smtp send failed",
-			"smtp_addr", smtpAddr,
-			"err", err,
+			slog.String("component", "mailsender"),
+			slog.String("event", "smtp.send_failed"),
+			slog.String("smtp_addr", smtpAddr),
+			slog.Float64("duration_ms", float64(time.Since(sendStarted).Microseconds())/1000),
+			slog.Any("err", err),
 		)
 		return fmt.Errorf("send smtp mail: %w", err)
 	}
 
-	slog.Info("mailsender.SendMail: sent ok", "smtp_addr", smtpAddr, "to_count", len(to))
+	slog.Info("mailsender.SendMail: sent ok",
+		slog.String("component", "mailsender"),
+		slog.String("event", "smtp.send_ok"),
+		slog.String("smtp_addr", smtpAddr),
+		slog.Int("to_count", len(to)),
+		slog.Float64("duration_ms", float64(time.Since(sendStarted).Microseconds())/1000),
+	)
 	return nil
 }
 
@@ -84,24 +117,36 @@ func SendMail(subject string, body string, to []string) error {
 func SendMailWithAttachment(subject, htmlBody string, to []string, attachmentName string, attachment []byte, attachmentContentType string, inlineAttachments []entity.InlineAttachment) error {
 	smtpMailName, smtpMailCode, err := smtpCredentials()
 	if err != nil {
-		slog.Warn("mailsender.SendMailWithAttachment: smtp credentials", "err", err)
+		slog.Warn("mailsender.SendMailWithAttachment: smtp credentials",
+			slog.String("component", "mailsender"),
+			slog.String("event", "smtp.credentials_missing"),
+			slog.Any("err", err),
+		)
 		return err
 	}
 	smtpHost, smtpAddr := smtpServerConfig()
 
 	masked := make([]string, len(to))
+	domains := make([]string, 0, len(to))
 	for i, addr := range to {
 		masked[i] = MaskEmail(addr)
+		if d := EmailDomain(addr); d != "" {
+			domains = append(domains, d)
+		}
 	}
 	slog.Info("mailsender.SendMailWithAttachment: sending",
-		"smtp_addr", smtpAddr,
-		"smtp_host", smtpHost,
-		"from_configured", smtpMailName != "",
-		"to_count", len(to),
-		"to_masked", strings.Join(masked, ","),
-		"subject", subject,
-		"attachment_bytes", len(attachment),
-		"inline_parts", len(inlineAttachments),
+		slog.String("component", "mailsender"),
+		slog.String("event", "smtp.send_attachment_start"),
+		slog.String("smtp_addr", smtpAddr),
+		slog.String("smtp_host", smtpHost),
+		slog.Bool("from_configured", smtpMailName != ""),
+		slog.String("from_masked", MaskEmail(smtpMailName)),
+		slog.Int("to_count", len(to)),
+		slog.String("to_masked", strings.Join(masked, ",")),
+		slog.Any("to_domains", domains),
+		slog.String("subject", subject),
+		slog.Int("attachment_bytes", len(attachment)),
+		slog.Int("inline_parts", len(inlineAttachments)),
 	)
 
 	auth := smtp.PlainAuth("", smtpMailName, smtpMailCode, smtpHost)
@@ -205,14 +250,25 @@ func SendMailWithAttachment(subject, htmlBody string, to []string, attachmentNam
 		return closeErr
 	}
 
+	sendStarted := time.Now()
 	if err := smtp.SendMail(smtpAddr, auth, smtpMailName, to, message.Bytes()); err != nil {
 		slog.Error("mailsender.SendMailWithAttachment: smtp send failed",
-			"smtp_addr", smtpAddr,
-			"err", err,
+			slog.String("component", "mailsender"),
+			slog.String("event", "smtp.send_attachment_failed"),
+			slog.String("smtp_addr", smtpAddr),
+			slog.Float64("duration_ms", float64(time.Since(sendStarted).Microseconds())/1000),
+			slog.Any("err", err),
 		)
 		return err
 	}
-	slog.Info("mailsender.SendMailWithAttachment: sent ok", "smtp_addr", smtpAddr, "to_count", len(to))
+	slog.Info("mailsender.SendMailWithAttachment: sent ok",
+		slog.String("component", "mailsender"),
+		slog.String("event", "smtp.send_attachment_ok"),
+		slog.String("smtp_addr", smtpAddr),
+		slog.Int("to_count", len(to)),
+		slog.Int("message_bytes", message.Len()),
+		slog.Float64("duration_ms", float64(time.Since(sendStarted).Microseconds())/1000),
+	)
 	return nil
 }
 
